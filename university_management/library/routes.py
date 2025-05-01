@@ -11,33 +11,43 @@ library_bp = Blueprint('library', __name__)
 @library_bp.route('/books', methods=['GET'])
 @jwt_required()
 def get_books():
-    books = Book.query.all()
-    return jsonify([{
-        'id': b.id,
-        'title': b.title,
-        'author': b.author,
-        'isbn': b.isbn,
-        'section_id': b.section_id,
-        'status': b.status,
-        'available_copies': b.available_copies
-    } for b in books])
+    """Get all books with optional filters"""
+    try:
+        title = request.args.get('title')
+        author = request.args.get('author')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = Book.query
+        
+        if title:
+            query = query.filter(Book.title.ilike(f'%{title}%'))
+        if author:
+            query = query.filter(Book.author.ilike(f'%{author}%'))
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        books = query.all()
+        return format_response([book.to_dict() for book in books])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/books', methods=['POST'])
 @jwt_required()
-@role_required(['admin', 'library'])
+@role_required(['admin', 'librarian'])
 def create_book():
-    data = request.get_json()
-    book = Book(
-        title=data['title'],
-        author=data['author'],
-        isbn=data['isbn'],
-        section_id=data['section_id'],
-        status=data.get('status', 'available'),
-        available_copies=data.get('available_copies', 1)
-    )
-    db.session.add(book)
-    db.session.commit()
-    return jsonify({'message': 'Book added successfully', 'id': book.id}), 201
+    """Create a new book"""
+    try:
+        data = request.get_json()
+        new_book = Book(**data)
+        db.session.add(new_book)
+        db.session.commit()
+        return format_response(new_book.to_dict(), 201)
+    except Exception as e:
+        db.session.rollback()
+        return handle_exception(e)
 
 # Author Routes
 @library_bp.route('/authors', methods=['GET'])
@@ -122,17 +132,33 @@ def create_category():
 # Loan Routes
 @library_bp.route('/loans', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'librarian'])
 def get_loans():
-    loans = Loan.query.all()
-    return jsonify([{
-        'id': l.id,
-        'book_id': l.book_id,
-        'member_id': l.member_id,
-        'loan_date': l.loan_date.isoformat(),
-        'due_date': l.due_date.isoformat(),
-        'return_date': l.return_date.isoformat() if l.return_date else None,
-        'status': l.status
-    } for l in loans])
+    """Get all loans with optional filters"""
+    try:
+        book_id = request.args.get('book_id')
+        member_id = request.args.get('member_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Loan.query
+        
+        if book_id:
+            query = query.filter_by(book_id=book_id)
+        if member_id:
+            query = query.filter_by(member_id=member_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Loan.loan_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Loan.loan_date <= datetime.fromisoformat(end_date))
+        
+        loans = query.all()
+        return format_response([loan.to_dict() for loan in loans])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/loans', methods=['POST'])
 @jwt_required()
@@ -153,15 +179,33 @@ def create_loan():
 # Reservation Routes
 @library_bp.route('/reservations', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'librarian'])
 def get_reservations():
-    reservations = Reservation.query.all()
-    return jsonify([{
-        'id': r.id,
-        'book_id': r.book_id,
-        'user_id': r.user_id,
-        'reservation_date': r.reservation_date.isoformat(),
-        'status': r.status
-    } for r in reservations])
+    """Get all reservations with optional filters"""
+    try:
+        book_id = request.args.get('book_id')
+        member_id = request.args.get('member_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Reservation.query
+        
+        if book_id:
+            query = query.filter_by(book_id=book_id)
+        if member_id:
+            query = query.filter_by(member_id=member_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Reservation.reservation_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Reservation.reservation_date <= datetime.fromisoformat(end_date))
+        
+        reservations = query.all()
+        return format_response([reservation.to_dict() for reservation in reservations])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/reservations', methods=['POST'])
 @jwt_required()
@@ -210,17 +254,30 @@ def create_library_card():
 # Fine Routes
 @library_bp.route('/fines', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'librarian'])
 def get_fines():
-    fines = Fine.query.all()
-    return jsonify([{
-        'id': f.id,
-        'loan_id': f.loan_id,
-        'amount': f.amount,
-        'currency': f.currency,
-        'issue_date': f.issue_date.isoformat(),
-        'payment_date': f.payment_date.isoformat() if f.payment_date else None,
-        'status': f.status
-    } for f in fines])
+    """Get all fines with optional filters"""
+    try:
+        member_id = request.args.get('member_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Fine.query
+        
+        if member_id:
+            query = query.filter_by(member_id=member_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Fine.issue_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Fine.issue_date <= datetime.fromisoformat(end_date))
+        
+        fines = query.all()
+        return format_response([fine.to_dict() for fine in fines])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/fines', methods=['POST'])
 @jwt_required()
@@ -242,15 +299,25 @@ def create_fine():
 @library_bp.route('/resources', methods=['GET'])
 @jwt_required()
 def get_resources():
-    resources = LibraryResource.query.all()
-    return jsonify([{
-        'id': r.id,
-        'title': r.title,
-        'resource_type': r.resource_type,
-        'section_id': r.section_id,
-        'status': r.status,
-        'available_copies': r.available_copies
-    } for r in resources])
+    """Get all library resources with optional filters"""
+    try:
+        resource_type = request.args.get('resource_type')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = LibraryResource.query
+        
+        if resource_type:
+            query = query.filter_by(resource_type=resource_type)
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        resources = query.all()
+        return format_response([resource.to_dict() for resource in resources])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/resources', methods=['POST'])
 @jwt_required()
@@ -271,16 +338,24 @@ def create_resource():
 # Library Member Routes
 @library_bp.route('/members', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'librarian'])
 def get_members():
-    members = LibraryMember.query.all()
-    return jsonify([{
-        'id': m.id,
-        'user_id': m.user_id,
-        'membership_type': m.membership_type,
-        'start_date': m.start_date.isoformat(),
-        'end_date': m.end_date.isoformat() if m.end_date else None,
-        'status': m.status
-    } for m in members])
+    """Get all library members with optional filters"""
+    try:
+        member_type = request.args.get('member_type')
+        status = request.args.get('status')
+        
+        query = LibraryMember.query
+        
+        if member_type:
+            query = query.filter_by(member_type=member_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        members = query.all()
+        return format_response([member.to_dict() for member in members])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/members', methods=['POST'])
 @jwt_required()
@@ -359,15 +434,28 @@ def create_staff():
 @library_bp.route('/events', methods=['GET'])
 @jwt_required()
 def get_events():
-    events = LibraryEvent.query.all()
-    return jsonify([{
-        'id': e.id,
-        'title': e.title,
-        'description': e.description,
-        'event_date': e.event_date.isoformat(),
-        'location': e.location,
-        'status': e.status
-    } for e in events])
+    """Get all library events with optional filters"""
+    try:
+        event_type = request.args.get('event_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = LibraryEvent.query
+        
+        if event_type:
+            query = query.filter_by(event_type=event_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(LibraryEvent.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(LibraryEvent.end_date <= datetime.fromisoformat(end_date))
+        
+        events = query.all()
+        return format_response([event.to_dict() for event in events])
+    except Exception as e:
+        return handle_exception(e)
 
 @library_bp.route('/events', methods=['POST'])
 @jwt_required()

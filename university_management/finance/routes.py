@@ -10,17 +10,30 @@ finance_bp = Blueprint('finance', __name__)
 # Tuition Routes
 @finance_bp.route('/tuition', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff', 'student'])
 def get_tuition_rates():
-    tuition_rates = Tuition.query.all()
-    return jsonify([{
-        'id': t.id,
-        'program_id': t.program_id,
-        'academic_year': t.academic_year,
-        'term': t.term,
-        'amount': t.amount,
-        'currency': t.currency,
-        'status': t.status
-    } for t in tuition_rates])
+    """Get tuition rates with optional filters"""
+    try:
+        program_id = request.args.get('program_id')
+        academic_year = request.args.get('academic_year')
+        term = request.args.get('term')
+        status = request.args.get('status')
+        
+        query = Tuition.query
+        
+        if program_id:
+            query = query.filter_by(program_id=program_id)
+        if academic_year:
+            query = query.filter_by(academic_year=academic_year)
+        if term:
+            query = query.filter_by(term=term)
+        if status:
+            query = query.filter_by(status=status)
+        
+        tuition_rates = query.all()
+        return format_response([rate.to_dict() for rate in tuition_rates])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/tuition', methods=['POST'])
 @jwt_required()
@@ -42,17 +55,30 @@ def create_tuition_rate():
 # Fee Routes
 @finance_bp.route('/fees', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff', 'student'])
 def get_fees():
-    fees = Fee.query.all()
-    return jsonify([{
-        'id': f.id,
-        'name': f.name,
-        'description': f.description,
-        'amount': f.amount,
-        'currency': f.currency,
-        'fee_type': f.fee_type,
-        'status': f.status
-    } for f in fees])
+    """Get all fees with optional filters"""
+    try:
+        fee_type = request.args.get('fee_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Fee.query
+        
+        if fee_type:
+            query = query.filter_by(fee_type=fee_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Fee.effective_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Fee.effective_date <= datetime.fromisoformat(end_date))
+        
+        fees = query.all()
+        return format_response([fee.to_dict() for fee in fees])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/fees', methods=['POST'])
 @jwt_required()
@@ -74,18 +100,33 @@ def create_fee():
 # Payment Routes
 @finance_bp.route('/payments', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff', 'student'])
 def get_payments():
-    payments = Payment.query.all()
-    return jsonify([{
-        'id': p.id,
-        'student_id': p.student_id,
-        'amount': p.amount,
-        'currency': p.currency,
-        'payment_date': p.payment_date.isoformat(),
-        'payment_method': p.payment_method,
-        'transaction_id': p.transaction_id,
-        'status': p.status
-    } for p in payments])
+    """Get all payments with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        payment_type = request.args.get('payment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Payment.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if payment_type:
+            query = query.filter_by(payment_type=payment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Payment.payment_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Payment.payment_date <= datetime.fromisoformat(end_date))
+        
+        payments = query.all()
+        return format_response([payment.to_dict() for payment in payments])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/payments', methods=['POST'])
 @jwt_required()
@@ -107,18 +148,33 @@ def create_payment():
 # Financial Aid Routes
 @finance_bp.route('/financial-aid', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff', 'student'])
 def get_financial_aid():
-    financial_aid = FinancialAid.query.all()
-    return jsonify([{
-        'id': fa.id,
-        'student_id': fa.student_id,
-        'aid_type': fa.aid_type,
-        'amount': fa.amount,
-        'currency': fa.currency,
-        'start_date': fa.start_date.isoformat(),
-        'end_date': fa.end_date.isoformat(),
-        'status': fa.status
-    } for fa in financial_aid])
+    """Get all financial aid records with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        aid_type = request.args.get('aid_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = FinancialAid.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if aid_type:
+            query = query.filter_by(aid_type=aid_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(FinancialAid.application_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(FinancialAid.application_date <= datetime.fromisoformat(end_date))
+        
+        aid_records = query.all()
+        return format_response([record.to_dict() for record in aid_records])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/financial-aid', methods=['POST'])
 @jwt_required()
@@ -141,17 +197,30 @@ def create_financial_aid():
 # Scholarship Routes
 @finance_bp.route('/scholarships', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff', 'student'])
 def get_scholarships():
-    scholarships = Scholarship.query.all()
-    return jsonify([{
-        'id': s.id,
-        'name': s.name,
-        'description': s.description,
-        'amount': s.amount,
-        'currency': s.currency,
-        'criteria': s.criteria,
-        'status': s.status
-    } for s in scholarships])
+    """Get all scholarships with optional filters"""
+    try:
+        scholarship_type = request.args.get('scholarship_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Scholarship.query
+        
+        if scholarship_type:
+            query = query.filter_by(scholarship_type=scholarship_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Scholarship.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Scholarship.end_date <= datetime.fromisoformat(end_date))
+        
+        scholarships = query.all()
+        return format_response([scholarship.to_dict() for scholarship in scholarships])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/scholarships', methods=['POST'])
 @jwt_required()
@@ -173,17 +242,27 @@ def create_scholarship():
 # Budget Routes
 @finance_bp.route('/budgets', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'finance'])
+@role_required(['admin', 'finance_staff'])
 def get_budgets():
-    budgets = Budget.query.all()
-    return jsonify([{
-        'id': b.id,
-        'department_id': b.department_id,
-        'fiscal_year': b.fiscal_year,
-        'amount': b.amount,
-        'currency': b.currency,
-        'status': b.status
-    } for b in budgets])
+    """Get all budgets with optional filters"""
+    try:
+        department_id = request.args.get('department_id')
+        fiscal_year = request.args.get('fiscal_year')
+        status = request.args.get('status')
+        
+        query = Budget.query
+        
+        if department_id:
+            query = query.filter_by(department_id=department_id)
+        if fiscal_year:
+            query = query.filter_by(fiscal_year=fiscal_year)
+        if status:
+            query = query.filter_by(status=status)
+        
+        budgets = query.all()
+        return format_response([budget.to_dict() for budget in budgets])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/budgets', methods=['POST'])
 @jwt_required()
@@ -204,19 +283,33 @@ def create_budget():
 # Expense Routes
 @finance_bp.route('/expenses', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'finance'])
+@role_required(['admin', 'finance_staff'])
 def get_expenses():
-    expenses = Expense.query.all()
-    return jsonify([{
-        'id': e.id,
-        'department_id': e.department_id,
-        'amount': e.amount,
-        'currency': e.currency,
-        'expense_date': e.expense_date.isoformat(),
-        'category': e.category,
-        'description': e.description,
-        'status': e.status
-    } for e in expenses])
+    """Get all expenses with optional filters"""
+    try:
+        department_id = request.args.get('department_id')
+        expense_type = request.args.get('expense_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Expense.query
+        
+        if department_id:
+            query = query.filter_by(department_id=department_id)
+        if expense_type:
+            query = query.filter_by(expense_type=expense_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Expense.expense_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Expense.expense_date <= datetime.fromisoformat(end_date))
+        
+        expenses = query.all()
+        return format_response([expense.to_dict() for expense in expenses])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/expenses', methods=['POST'])
 @jwt_required()
@@ -237,6 +330,33 @@ def create_expense():
     return jsonify({'message': 'Expense created successfully', 'id': expense.id}), 201
 
 # Revenue Routes
+@finance_bp.route('/revenue', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'finance_staff'])
+def get_revenue():
+    """Get all revenue records with optional filters"""
+    try:
+        revenue_type = request.args.get('revenue_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Revenue.query
+        
+        if revenue_type:
+            query = query.filter_by(revenue_type=revenue_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Revenue.revenue_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Revenue.revenue_date <= datetime.fromisoformat(end_date))
+        
+        revenue_records = query.all()
+        return format_response([record.to_dict() for record in revenue_records])
+    except Exception as e:
+        return handle_exception(e)
+
 @finance_bp.route('/revenues', methods=['GET'])
 @jwt_required()
 @role_required(['admin', 'finance'])
@@ -274,16 +394,33 @@ def create_revenue():
 # Invoice Routes
 @finance_bp.route('/invoices', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'finance_staff'])
 def get_invoices():
-    invoices = Invoice.query.all()
-    return jsonify([{
-        'id': i.id,
-        'student_id': i.student_id,
-        'amount': i.amount,
-        'currency': i.currency,
-        'due_date': i.due_date.isoformat(),
-        'status': i.status
-    } for i in invoices])
+    """Get all invoices with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        invoice_type = request.args.get('invoice_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Invoice.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if invoice_type:
+            query = query.filter_by(invoice_type=invoice_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Invoice.invoice_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Invoice.invoice_date <= datetime.fromisoformat(end_date))
+        
+        invoices = query.all()
+        return format_response([invoice.to_dict() for invoice in invoices])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/invoices', methods=['POST'])
 @jwt_required()
@@ -304,18 +441,33 @@ def create_invoice():
 # Refund Routes
 @finance_bp.route('/refunds', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'finance'])
+@role_required(['admin', 'finance_staff'])
 def get_refunds():
-    refunds = Refund.query.all()
-    return jsonify([{
-        'id': r.id,
-        'student_id': r.student_id,
-        'amount': r.amount,
-        'currency': r.currency,
-        'refund_date': r.refund_date.isoformat(),
-        'reason': r.reason,
-        'status': r.status
-    } for r in refunds])
+    """Get all refunds with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        refund_type = request.args.get('refund_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Refund.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if refund_type:
+            query = query.filter_by(refund_type=refund_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Refund.refund_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Refund.refund_date <= datetime.fromisoformat(end_date))
+        
+        refunds = query.all()
+        return format_response([refund.to_dict() for refund in refunds])
+    except Exception as e:
+        return handle_exception(e)
 
 @finance_bp.route('/refunds', methods=['POST'])
 @jwt_required()

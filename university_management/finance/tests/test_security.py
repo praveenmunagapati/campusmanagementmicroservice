@@ -1,293 +1,123 @@
-import unittest
-import json
-from datetime import datetime
-from flask import url_for
-from ..models import Invoice, Payment, FinancialAid, User, Student
-from app import db, create_app
-from flask_jwt_extended import create_access_token
-import time
+import pytest
+from university_management.security.base_security_test import BaseSecurityTest
 
-class TestFinanceSecurity(unittest.TestCase):
-    def setUp(self):
-        self.app = create_app('testing')
-        self.app_context = self.app.app_context()
-        self.app_context.push()
-        db.create_all()
-        
-        # Create test users with different roles
-        self.admin_user = User(
-            username='admin',
-            email='admin@example.com',
-            role='admin'
-        )
-        self.admin_user.set_password('admin123')
-        db.session.add(self.admin_user)
-        
-        self.finance_user = User(
-            username='finance',
-            email='finance@example.com',
-            role='finance_staff'
-        )
-        self.finance_user.set_password('finance123')
-        db.session.add(self.finance_user)
-        
-        self.student_user = User(
-            username='student',
-            email='student@example.com',
-            role='student'
-        )
-        self.student_user.set_password('student123')
-        db.session.add(self.student_user)
-        
-        # Create a test student
-        self.student = Student(
-            name='Test Student',
-            email='student@example.com',
-            student_id='ST12345'
-        )
-        db.session.add(self.student)
-        
-        db.session.commit()
-        
-        # Create access tokens
-        self.admin_token = create_access_token(identity={
-            'id': self.admin_user.id,
-            'role': self.admin_user.role
-        })
-        
-        self.finance_token = create_access_token(identity={
-            'id': self.finance_user.id,
-            'role': self.finance_user.role
-        })
-        
-        self.student_token = create_access_token(identity={
-            'id': self.student_user.id,
-            'role': self.student_user.role
-        })
-        
-        self.client = self.app.test_client()
-        self.admin_headers = {
-            'Authorization': f'Bearer {self.admin_token}',
-            'Content-Type': 'application/json'
-        }
-        self.finance_headers = {
-            'Authorization': f'Bearer {self.finance_token}',
-            'Content-Type': 'application/json'
-        }
-        self.student_headers = {
-            'Authorization': f'Bearer {self.student_token}',
-            'Content-Type': 'application/json'
-        }
-
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
-        self.app_context.pop()
-
-    def test_unauthorized_access(self):
-        """Test access without authentication"""
-        response = self.client.get('/api/v1/finance/invoices')
-        self.assertEqual(response.status_code, 401)
-
-    def test_invalid_token(self):
-        """Test access with invalid token"""
-        headers = {
-            'Authorization': 'Bearer invalid_token',
-            'Content-Type': 'application/json'
-        }
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
-        self.assertEqual(response.status_code, 422)
-
-    def test_role_based_access(self):
-        """Test role-based access control"""
-        # Create an invoice first
-        invoice_data = {
-            'student_id': self.student.id,
+class TestFinanceSecurity(BaseSecurityTest):
+    def __init__(self):
+        super().__init__('http://localhost:5000/api/finance')
+        self.test_invoice = {
+            'student_id': 1,
             'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
             'description': 'Tuition Fee'
         }
-        
-        # Finance staff should be able to create
-        response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
-        )
-        self.assertEqual(response.status_code, 201)
-        invoice_id = json.loads(response.data)['data']['id']
-        
-        # Admin should be able to view
-        response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
-            headers=self.admin_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should be able to view their own invoice
-        response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
-            headers=self.student_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should not be able to create
-        response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.student_headers,
-            data=json.dumps(invoice_data)
-        )
-        self.assertEqual(response.status_code, 403)
-
-    def test_payment_access(self):
-        """Test payment access control"""
-        # Create a payment
-        payment_data = {
+        self.test_payment = {
             'invoice_id': 1,
             'amount': 1000.00,
-            'payment_method': 'credit_card',
-            'transaction_id': 'TR123456'
+            'payment_method': 'credit_card'
         }
-        
-        # Student should be able to make payment
-        response = self.client.post(
-            '/api/v1/finance/payments',
-            headers=self.student_headers,
-            data=json.dumps(payment_data)
-        )
-        self.assertEqual(response.status_code, 201)
-        payment_id = json.loads(response.data)['data']['id']
-        
-        # Finance staff should be able to view
-        response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
-            headers=self.finance_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should be able to view their own payment
-        response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
-            headers=self.student_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Only finance staff should be able to refund
-        response = self.client.post(
-            f'/api/v1/finance/payments/{payment_id}/refund',
-            headers=self.finance_headers
-        )
-        self.assertEqual(response.status_code, 200)
-
-    def test_financial_aid_access(self):
-        """Test financial aid access control"""
-        # Create a financial aid application
-        aid_data = {
-            'student_id': self.student.id,
-            'type': 'scholarship',
+        self.test_financial_aid = {
+            'student_id': 1,
             'amount': 5000.00,
-            'status': 'pending',
-            'description': 'Academic Excellence Scholarship'
+            'aid_type': 'scholarship'
         }
-        
-        # Student should be able to apply
-        response = self.client.post(
-            '/api/v1/finance/financial-aid',
-            headers=self.student_headers,
-            data=json.dumps(aid_data)
-        )
-        self.assertEqual(response.status_code, 201)
-        aid_id = json.loads(response.data)['data']['id']
-        
-        # Finance staff should be able to view and approve
-        response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
-            headers=self.finance_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should be able to view their own application
-        response = self.client.get(
-            f'/api/v1/finance/financial-aid/{aid_id}',
-            headers=self.student_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should not be able to approve
-        response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
-            headers=self.student_headers
-        )
-        self.assertEqual(response.status_code, 403)
 
-    def test_sql_injection_prevention(self):
-        """Test SQL injection prevention"""
-        # Try SQL injection in search parameter
-        response = self.client.get(
-            '/api/v1/finance/invoices?search=1; DROP TABLE invoices; --',
-            headers=self.admin_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        # The query should be sanitized and not cause any harm
-
-    def test_xss_prevention(self):
-        """Test XSS prevention"""
-        # Try XSS in invoice data
-        invoice_data = {
-            'student_id': self.student.id,
-            'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
-            'description': '<script>alert("xss")</script>'
+    def test_invoice_endpoint_security(self):
+        """Test security for invoice-related endpoints"""
+        endpoint = '/invoices'
+        
+        # Test authentication
+        self.test_unauthorized_access(endpoint)
+        self.test_invalid_token(endpoint)
+        self.test_expired_token(endpoint)
+        
+        # Test role-based access
+        roles = {
+            'admin': 200,
+            'finance_staff': 200,
+            'student': 403,
+            'faculty': 403
         }
+        self.test_role_based_access(endpoint, 'POST', roles)
         
-        response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
-        )
-        self.assertEqual(response.status_code, 201)
-        
-        # The response should have the script tags escaped
-        response_data = json.loads(response.data)
-        self.assertIn('&lt;script&gt;', response_data['data']['description'])
+        # Test for vulnerabilities
+        self.test_sql_injection(endpoint, self.test_invoice)
+        self.test_xss_prevention(endpoint, self.test_invoice)
+        self.test_rate_limiting(endpoint)
+        self.test_security_headers(endpoint)
+        self.test_csrf_protection(endpoint, 'POST', self.test_invoice)
+        self.run_vulnerability_scan(endpoint, self.test_invoice)
 
-    def test_rate_limiting(self):
-        """Test rate limiting"""
-        # Make multiple requests in quick succession
-        for _ in range(100):
-            response = self.client.get(
-                '/api/v1/finance/invoices',
-                headers=self.admin_headers
+    def test_payment_endpoint_security(self):
+        """Test security for payment-related endpoints"""
+        endpoint = '/payments'
+        
+        # Test authentication
+        self.test_unauthorized_access(endpoint)
+        self.test_invalid_token(endpoint)
+        self.test_expired_token(endpoint)
+        
+        # Test role-based access
+        roles = {
+            'admin': 200,
+            'finance_staff': 200,
+            'student': 200,  # Students can make payments
+            'faculty': 403
+        }
+        self.test_role_based_access(endpoint, 'POST', roles)
+        
+        # Test for vulnerabilities
+        self.test_sql_injection(endpoint, self.test_payment)
+        self.test_xss_prevention(endpoint, self.test_payment)
+        self.test_rate_limiting(endpoint)
+        self.test_security_headers(endpoint)
+        self.test_csrf_protection(endpoint, 'POST', self.test_payment)
+        self.run_vulnerability_scan(endpoint, self.test_payment)
+
+    def test_financial_aid_endpoint_security(self):
+        """Test security for financial aid-related endpoints"""
+        endpoint = '/financial-aid'
+        
+        # Test authentication
+        self.test_unauthorized_access(endpoint)
+        self.test_invalid_token(endpoint)
+        self.test_expired_token(endpoint)
+        
+        # Test role-based access
+        roles = {
+            'admin': 200,
+            'finance_staff': 200,
+            'financial_aid_officer': 200,
+            'student': 403,
+            'faculty': 403
+        }
+        self.test_role_based_access(endpoint, 'POST', roles)
+        
+        # Test for vulnerabilities
+        self.test_sql_injection(endpoint, self.test_financial_aid)
+        self.test_xss_prevention(endpoint, self.test_financial_aid)
+        self.test_rate_limiting(endpoint)
+        self.test_security_headers(endpoint)
+        self.test_csrf_protection(endpoint, 'POST', self.test_financial_aid)
+        self.run_vulnerability_scan(endpoint, self.test_financial_aid)
+
+    def test_sensitive_data_protection(self):
+        """Test protection of sensitive financial data"""
+        endpoints = ['/invoices', '/payments', '/financial-aid']
+        
+        for endpoint in endpoints:
+            response = self.utils.create_mock_request(
+                headers={'Accept': 'application/json'}
             )
-            if response.status_code == 429:
-                break
-        
-        # Should eventually get rate limited
-        self.assertEqual(response.status_code, 429)
-
-    def test_token_expiration(self):
-        """Test token expiration"""
-        # Create a token with very short expiration
-        expired_token = create_access_token(
-            identity={
-                'id': self.admin_user.id,
-                'role': self.admin_user.role
-            },
-            expires_delta=datetime.timedelta(seconds=1)
-        )
-        
-        headers = {
-            'Authorization': f'Bearer {expired_token}',
-            'Content-Type': 'application/json'
-        }
-        
-        # Wait for token to expire
-        time.sleep(2)
-        
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
-        self.assertEqual(response.status_code, 401)
+            
+            # Verify data encryption in transit
+            assert 'https://' in self.base_url, "API must use HTTPS"
+            
+            # Verify sensitive data masking
+            if response.json:
+                data = response.json()
+                if 'credit_card' in str(data):
+                    assert '****' in str(data), "Credit card numbers should be masked"
+                if 'ssn' in str(data):
+                    assert '***-**-' in str(data), "SSN should be masked"
 
 if __name__ == '__main__':
-    unittest.main() 
+    pytest.main([__file__]) 

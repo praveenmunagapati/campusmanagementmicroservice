@@ -1,28 +1,33 @@
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from .. import db
+from sqlalchemy.dialects.postgresql import JSONB
 
 class Report(db.Model):
+    """Model for analytics reports"""
     __tablename__ = 'reports'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    report_type = db.Column(db.String(50), nullable=False)  # academic, financial, enrollment, etc.
-    data_source = db.Column(db.String(100), nullable=False)
-    query = db.Column(db.Text, nullable=False)
-    parameters = db.Column(db.Text)  # JSON string of report parameters
-    format = db.Column(db.String(20), default='table')  # table, chart, graph
-    schedule = db.Column(db.String(50))  # daily, weekly, monthly, quarterly
-    last_run = db.Column(db.DateTime)
-    next_run = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default='active')  # active, inactive
+    report_type = db.Column(db.String(50))  # academic, financial, enrollment, etc.
+    data_source = db.Column(db.String(100))  # Source of the data
+    query = db.Column(db.Text)  # SQL or other query used
+    parameters = db.Column(JSONB)  # Report parameters
+    format = db.Column(db.String(50))  # pdf, excel, csv, etc.
+    schedule = db.Column(JSONB)  # Scheduling information
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    last_run = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='active')  # active, inactive
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    metadata = db.Column(JSONB)  # Additional report data
 
-    creator = db.relationship('User', backref=db.backref('created_reports', lazy=True))
+    # Relationships
+    creator = db.relationship('User', backref='created_reports')
+    dashboards = db.relationship('DashboardReport', backref='report', lazy=True)
+
+    def __repr__(self):
+        return f'<Report {self.title}>'
 
 class ReportExecution(db.Model):
     __tablename__ = 'report_executions'
@@ -39,21 +44,67 @@ class ReportExecution(db.Model):
     report = db.relationship('Report', backref=db.backref('executions', lazy=True))
 
 class Dashboard(db.Model):
+    """Model for analytics dashboards"""
     __tablename__ = 'dashboards'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    layout = db.Column(db.Text)  # JSON string of dashboard layout
+    layout = db.Column(JSONB)  # Dashboard layout configuration
+    theme = db.Column(db.String(50))  # Dashboard theme
+    refresh_rate = db.Column(db.Integer)  # Refresh rate in minutes
     is_public = db.Column(db.Boolean, default=False)
-    refresh_interval = db.Column(db.Integer)  # in minutes
-    last_refresh = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default='active')  # active, inactive
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='active')  # active, inactive
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    metadata = db.Column(JSONB)  # Additional dashboard data
+
+    # Relationships
+    creator = db.relationship('User', backref='created_dashboards')
+    reports = db.relationship('DashboardReport', backref='dashboard', lazy=True)
+    access_controls = db.relationship('DashboardAccess', backref='dashboard', lazy=True)
+
+    def __repr__(self):
+        return f'<Dashboard {self.title}>'
+
+class DashboardReport(db.Model):
+    """Model for reports included in dashboards"""
+    __tablename__ = 'dashboard_reports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    dashboard_id = db.Column(db.Integer, db.ForeignKey('dashboards.id'), nullable=False)
+    report_id = db.Column(db.Integer, db.ForeignKey('reports.id'), nullable=False)
+    position = db.Column(JSONB)  # Position in dashboard layout
+    size = db.Column(JSONB)  # Size configuration
+    refresh_rate = db.Column(db.Integer)  # Individual refresh rate
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    creator = db.relationship('User', backref=db.backref('created_dashboards', lazy=True))
+    def __repr__(self):
+        return f'<DashboardReport {self.id}>'
+
+class DashboardAccess(db.Model):
+    """Model for dashboard access controls"""
+    __tablename__ = 'dashboard_access'
+
+    id = db.Column(db.Integer, primary_key=True)
+    dashboard_id = db.Column(db.Integer, db.ForeignKey('dashboards.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    access_level = db.Column(db.String(20))  # view, edit, admin
+    granted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    granted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref='dashboard_access')
+    granter = db.relationship('User', foreign_keys=[granted_by], backref='granted_access')
+
+    def __repr__(self):
+        return f'<DashboardAccess {self.id}>'
 
 class DashboardWidget(db.Model):
     __tablename__ = 'dashboard_widgets'
@@ -74,21 +125,27 @@ class DashboardWidget(db.Model):
     dashboard = db.relationship('Dashboard', backref=db.backref('widgets', lazy=True))
 
 class DataSource(db.Model):
+    """Model for data sources"""
     __tablename__ = 'data_sources'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
-    source_type = db.Column(db.String(50), nullable=False)  # database, api, file
-    connection_details = db.Column(db.Text)  # JSON string of connection details
-    refresh_interval = db.Column(db.Integer)  # in minutes
+    source_type = db.Column(db.String(50))  # database, api, file, etc.
+    connection_details = db.Column(JSONB)  # Connection configuration
+    refresh_schedule = db.Column(JSONB)  # Data refresh schedule
     last_refresh = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default='active')  # active, inactive
+    status = db.Column(db.String(20), default='active')  # active, inactive, error
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    metadata = db.Column(JSONB)  # Additional source data
 
-    creator = db.relationship('User', backref=db.backref('created_data_sources', lazy=True))
+    # Relationships
+    creator = db.relationship('User', backref='created_data_sources')
+
+    def __repr__(self):
+        return f'<DataSource {self.name}>'
 
 class DataSourceRefresh(db.Model):
     __tablename__ = 'data_source_refreshes'
@@ -139,4 +196,47 @@ class AlertTrigger(db.Model):
 
     alert = db.relationship('AnalyticsAlert', backref=db.backref('triggers', lazy=True))
     acknowledger = db.relationship('User', foreign_keys=[acknowledged_by], backref=db.backref('acknowledged_alerts', lazy=True))
-    resolver = db.relationship('User', foreign_keys=[resolved_by], backref=db.backref('resolved_alerts', lazy=True)) 
+    resolver = db.relationship('User', foreign_keys=[resolved_by], backref=db.backref('resolved_alerts', lazy=True))
+
+class AnalyticsJob(db.Model):
+    """Model for analytics jobs"""
+    __tablename__ = 'analytics_jobs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    job_type = db.Column(db.String(50))  # report, data_refresh, etc.
+    schedule = db.Column(JSONB)  # Job scheduling information
+    parameters = db.Column(JSONB)  # Job parameters
+    status = db.Column(db.String(20), default='pending')  # pending, running, completed, failed
+    last_run = db.Column(db.DateTime)
+    next_run = db.Column(db.DateTime)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    metadata = db.Column(JSONB)  # Additional job data
+
+    # Relationships
+    creator = db.relationship('User', backref='created_analytics_jobs')
+
+    def __repr__(self):
+        return f'<AnalyticsJob {self.name}>'
+
+class AnalyticsLog(db.Model):
+    """Model for analytics logs"""
+    __tablename__ = 'analytics_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('analytics_jobs.id'))
+    event_type = db.Column(db.String(50))  # report_generated, data_refreshed, error, etc.
+    message = db.Column(db.Text)
+    details = db.Column(JSONB)  # Additional log details
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    job = db.relationship('AnalyticsJob', backref='logs')
+    creator = db.relationship('User', backref='analytics_logs')
+
+    def __repr__(self):
+        return f'<AnalyticsLog {self.id}>' 

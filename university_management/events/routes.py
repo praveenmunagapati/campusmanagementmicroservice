@@ -7,212 +7,185 @@ from utils import role_required, validate_request, format_response, log_activity
 
 events_bp = Blueprint('events', __name__)
 
-# Event Routes
 @events_bp.route('/events', methods=['GET'])
 @jwt_required()
 def get_events():
-    events = Event.query.all()
-    return jsonify([{
-        'id': e.id,
-        'title': e.title,
-        'description': e.description,
-        'category_id': e.category_id,
-        'venue_id': e.venue_id,
-        'start_date': e.start_date.isoformat(),
-        'end_date': e.end_date.isoformat(),
-        'capacity': e.capacity,
-        'status': e.status
-    } for e in events])
+    """Get all events with optional filters"""
+    try:
+        category_id = request.args.get('category_id')
+        venue_id = request.args.get('venue_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Event.query
+        
+        if category_id:
+            query = query.filter_by(category_id=category_id)
+        if venue_id:
+            query = query.filter_by(venue_id=venue_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Event.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Event.end_date <= datetime.fromisoformat(end_date))
+        
+        events = query.all()
+        return format_response([event.to_dict() for event in events])
+    except Exception as e:
+        return handle_exception(e)
 
 @events_bp.route('/events', methods=['POST'])
 @jwt_required()
-@role_required(['admin', 'events'])
+@role_required(['admin', 'event_manager'])
 def create_event():
-    data = request.get_json()
-    event = Event(
-        title=data['title'],
-        description=data['description'],
-        category_id=data['category_id'],
-        venue_id=data['venue_id'],
-        start_date=datetime.fromisoformat(data['start_date']),
-        end_date=datetime.fromisoformat(data['end_date']),
-        capacity=data['capacity'],
-        status=data.get('status', 'scheduled')
-    )
-    db.session.add(event)
-    db.session.commit()
-    return jsonify({'message': 'Event created successfully', 'id': event.id}), 201
+    """Create a new event"""
+    try:
+        data = request.get_json()
+        new_event = Event(**data)
+        db.session.add(new_event)
+        db.session.commit()
+        return format_response(new_event.to_dict(), 201)
+    except Exception as e:
+        db.session.rollback()
+        return handle_exception(e)
 
-# Event Registration Routes
 @events_bp.route('/registrations', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'event_manager'])
 def get_registrations():
-    registrations = EventRegistration.query.all()
-    return jsonify([{
-        'id': r.id,
-        'event_id': r.event_id,
-        'user_id': r.user_id,
-        'registration_date': r.registration_date.isoformat(),
-        'status': r.status
-    } for r in registrations])
+    """Get all event registrations with optional filters"""
+    try:
+        event_id = request.args.get('event_id')
+        user_id = request.args.get('user_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = EventRegistration.query
+        
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(EventRegistration.registration_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(EventRegistration.registration_date <= datetime.fromisoformat(end_date))
+        
+        registrations = query.all()
+        return format_response([registration.to_dict() for registration in registrations])
+    except Exception as e:
+        return handle_exception(e)
 
-@events_bp.route('/registrations', methods=['POST'])
-@jwt_required()
-def create_registration():
-    data = request.get_json()
-    registration = EventRegistration(
-        event_id=data['event_id'],
-        user_id=data['user_id'],
-        registration_date=datetime.fromisoformat(data['registration_date']),
-        status=data.get('status', 'confirmed')
-    )
-    db.session.add(registration)
-    db.session.commit()
-    return jsonify({'message': 'Registration created successfully', 'id': registration.id}), 201
-
-# Venue Routes
 @events_bp.route('/venues', methods=['GET'])
 @jwt_required()
 def get_venues():
-    venues = Venue.query.all()
-    return jsonify([{
-        'id': v.id,
-        'name': v.name,
-        'location': v.location,
-        'capacity': v.capacity,
-        'facilities': v.facilities,
-        'status': v.status
-    } for v in venues])
+    """Get all venues with optional filters"""
+    try:
+        venue_type = request.args.get('venue_type')
+        capacity = request.args.get('capacity')
+        status = request.args.get('status')
+        
+        query = Venue.query
+        
+        if venue_type:
+            query = query.filter_by(venue_type=venue_type)
+        if capacity:
+            query = query.filter(Venue.capacity >= int(capacity))
+        if status:
+            query = query.filter_by(status=status)
+        
+        venues = query.all()
+        return format_response([venue.to_dict() for venue in venues])
+    except Exception as e:
+        return handle_exception(e)
 
-@events_bp.route('/venues', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'events'])
-def create_venue():
-    data = request.get_json()
-    venue = Venue(
-        name=data['name'],
-        location=data['location'],
-        capacity=data['capacity'],
-        facilities=data.get('facilities'),
-        status=data.get('status', 'active')
-    )
-    db.session.add(venue)
-    db.session.commit()
-    return jsonify({'message': 'Venue created successfully', 'id': venue.id}), 201
-
-# Event Category Routes
 @events_bp.route('/categories', methods=['GET'])
 @jwt_required()
 def get_categories():
-    categories = EventCategory.query.all()
-    return jsonify([{
-        'id': c.id,
-        'name': c.name,
-        'description': c.description,
-        'status': c.status
-    } for c in categories])
+    """Get all event categories"""
+    try:
+        categories = EventCategory.query.all()
+        return format_response([category.to_dict() for category in categories])
+    except Exception as e:
+        return handle_exception(e)
 
-@events_bp.route('/categories', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'events'])
-def create_category():
-    data = request.get_json()
-    category = EventCategory(
-        name=data['name'],
-        description=data.get('description'),
-        status=data.get('status', 'active')
-    )
-    db.session.add(category)
-    db.session.commit()
-    return jsonify({'message': 'Category created successfully', 'id': category.id}), 201
-
-# Event Speaker Routes
 @events_bp.route('/speakers', methods=['GET'])
 @jwt_required()
 def get_speakers():
-    speakers = EventSpeaker.query.all()
-    return jsonify([{
-        'id': s.id,
-        'event_id': s.event_id,
-        'name': s.name,
-        'title': s.title,
-        'organization': s.organization,
-        'bio': s.bio,
-        'status': s.status
-    } for s in speakers])
+    """Get all event speakers with optional filters"""
+    try:
+        event_id = request.args.get('event_id')
+        speaker_type = request.args.get('speaker_type')
+        status = request.args.get('status')
+        
+        query = EventSpeaker.query
+        
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        if speaker_type:
+            query = query.filter_by(speaker_type=speaker_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        speakers = query.all()
+        return format_response([speaker.to_dict() for speaker in speakers])
+    except Exception as e:
+        return handle_exception(e)
 
-@events_bp.route('/speakers', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'events'])
-def create_speaker():
-    data = request.get_json()
-    speaker = EventSpeaker(
-        event_id=data['event_id'],
-        name=data['name'],
-        title=data.get('title'),
-        organization=data.get('organization'),
-        bio=data.get('bio'),
-        status=data.get('status', 'confirmed')
-    )
-    db.session.add(speaker)
-    db.session.commit()
-    return jsonify({'message': 'Speaker added successfully', 'id': speaker.id}), 201
-
-# Event Feedback Routes
 @events_bp.route('/feedback', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'event_manager'])
 def get_feedback():
-    feedback = EventFeedback.query.all()
-    return jsonify([{
-        'id': f.id,
-        'event_id': f.event_id,
-        'user_id': f.user_id,
-        'rating': f.rating,
-        'comments': f.comments,
-        'feedback_date': f.feedback_date.isoformat(),
-        'status': f.status
-    } for f in feedback])
+    """Get all event feedback with optional filters"""
+    try:
+        event_id = request.args.get('event_id')
+        user_id = request.args.get('user_id')
+        rating = request.args.get('rating')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = EventFeedback.query
+        
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        if rating:
+            query = query.filter_by(rating=rating)
+        if start_date:
+            query = query.filter(EventFeedback.feedback_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(EventFeedback.feedback_date <= datetime.fromisoformat(end_date))
+        
+        feedback = query.all()
+        return format_response([f.to_dict() for f in feedback])
+    except Exception as e:
+        return handle_exception(e)
 
-@events_bp.route('/feedback', methods=['POST'])
-@jwt_required()
-def create_feedback():
-    data = request.get_json()
-    feedback = EventFeedback(
-        event_id=data['event_id'],
-        user_id=data['user_id'],
-        rating=data['rating'],
-        comments=data.get('comments'),
-        feedback_date=datetime.fromisoformat(data['feedback_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(feedback)
-    db.session.commit()
-    return jsonify({'message': 'Feedback submitted successfully', 'id': feedback.id}), 201
-
-# Event Resource Routes
 @events_bp.route('/resources', methods=['GET'])
 @jwt_required()
 def get_resources():
-    resources = EventResource.query.all()
-    return jsonify([{
-        'id': r.id,
-        'event_id': r.event_id,
-        'resource_type': r.resource_type,
-        'file_path': r.file_path,
-        'status': r.status
-    } for r in resources])
-
-@events_bp.route('/resources', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'events'])
-def create_resource():
-    data = request.get_json()
-    resource = EventResource(
-        event_id=data['event_id'],
-        resource_type=data['resource_type'],
-        file_path=data['file_path'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(resource)
-    db.session.commit()
-    return jsonify({'message': 'Resource added successfully', 'id': resource.id}), 201 
+    """Get all event resources with optional filters"""
+    try:
+        event_id = request.args.get('event_id')
+        resource_type = request.args.get('resource_type')
+        status = request.args.get('status')
+        
+        query = EventResource.query
+        
+        if event_id:
+            query = query.filter_by(event_id=event_id)
+        if resource_type:
+            query = query.filter_by(resource_type=resource_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        resources = query.all()
+        return format_response([resource.to_dict() for resource in resources])
+    except Exception as e:
+        return handle_exception(e) 
