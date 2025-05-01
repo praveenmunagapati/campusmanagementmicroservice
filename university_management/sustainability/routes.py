@@ -3,7 +3,12 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     EnergyUsage, EnergyGoal, WasteManagement, WasteReductionGoal,
     SustainabilityProject, ProjectTeam, SustainabilityEvent, EventRegistration,
-    EnergyConsumption, GreenBuilding
+    EnergyConsumption, GreenBuilding,
+    SustainabilityGoal, SustainabilityMetric,
+    SustainabilityReport, SustainabilityResource,
+    SustainabilityWaste, SustainabilityEnergy, SustainabilityWater,
+    SustainabilityTransport, SustainabilityFood, SustainabilityEducation,
+    SustainabilityPolicy, SustainabilityAward
 )
 from .. import db
 from datetime import datetime
@@ -179,13 +184,30 @@ def delete_waste_goal(id):
 # Sustainability Project Routes
 @sustainability_bp.route('/projects', methods=['GET'])
 @jwt_required()
-def get_projects():
-    """Get all sustainability projects"""
-    projects = SustainabilityProject.query.all()
-    return jsonify({
-        'status': 'success',
-        'data': [project.to_dict() for project in projects]
-    }), 200
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_projects():
+    """Get all sustainability projects with optional filters"""
+    try:
+        project_type = request.args.get('project_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityProject.query
+        
+        if project_type:
+            query = query.filter_by(project_type=project_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityProject.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityProject.end_date <= datetime.fromisoformat(end_date))
+        
+        projects = query.all()
+        return format_response([project.to_dict() for project in projects])
+    except Exception as e:
+        return handle_exception(e)
 
 @sustainability_bp.route('/projects/<int:id>', methods=['GET'])
 @jwt_required()
@@ -290,13 +312,30 @@ def remove_team_member(id):
 # Sustainability Event Routes
 @sustainability_bp.route('/events', methods=['GET'])
 @jwt_required()
-def get_events():
-    """Get all sustainability events"""
-    events = SustainabilityEvent.query.all()
-    return jsonify({
-        'status': 'success',
-        'data': [event.to_dict() for event in events]
-    }), 200
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_events():
+    """Get all sustainability events with optional filters"""
+    try:
+        event_type = request.args.get('event_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityEvent.query
+        
+        if event_type:
+            query = query.filter_by(event_type=event_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityEvent.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityEvent.end_date <= datetime.fromisoformat(end_date))
+        
+        events = query.all()
+        return format_response([event.to_dict() for event in events])
+    except Exception as e:
+        return handle_exception(e)
 
 @sustainability_bp.route('/events/<int:id>', methods=['GET'])
 @jwt_required()
@@ -540,4 +579,340 @@ def create_green_building():
     return jsonify({
         'status': 'success',
         'data': building.to_dict()
-    }), 201 
+    }), 201
+
+# Sustainability Goal Routes
+@sustainability_bp.route('/goals', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_goals():
+    """Get all sustainability goals with optional filters"""
+    try:
+        goal_type = request.args.get('goal_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityGoal.query
+        
+        if goal_type:
+            query = query.filter_by(goal_type=goal_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityGoal.target_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityGoal.target_date <= datetime.fromisoformat(end_date))
+        
+        goals = query.all()
+        return format_response([goal.to_dict() for goal in goals])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Metric Routes
+@sustainability_bp.route('/metrics', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_metrics():
+    """Get all sustainability metrics with optional filters"""
+    try:
+        metric_type = request.args.get('metric_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityMetric.query
+        
+        if metric_type:
+            query = query.filter_by(metric_type=metric_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityMetric.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityMetric.measurement_date <= datetime.fromisoformat(end_date))
+        
+        metrics = query.all()
+        return format_response([metric.to_dict() for metric in metrics])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Report Routes
+@sustainability_bp.route('/reports', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_reports():
+    """Get all sustainability reports with optional filters"""
+    try:
+        report_type = request.args.get('report_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityReport.query
+        
+        if report_type:
+            query = query.filter_by(report_type=report_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityReport.report_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityReport.report_date <= datetime.fromisoformat(end_date))
+        
+        reports = query.all()
+        return format_response([report.to_dict() for report in reports])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Resource Routes
+@sustainability_bp.route('/resources', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_resources():
+    """Get all sustainability resources with optional filters"""
+    try:
+        resource_type = request.args.get('resource_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityResource.query
+        
+        if resource_type:
+            query = query.filter_by(resource_type=resource_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityResource.acquisition_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityResource.acquisition_date <= datetime.fromisoformat(end_date))
+        
+        resources = query.all()
+        return format_response([resource.to_dict() for resource in resources])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Waste Routes
+@sustainability_bp.route('/waste', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_waste():
+    """Get all sustainability waste records with optional filters"""
+    try:
+        waste_type = request.args.get('waste_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityWaste.query
+        
+        if waste_type:
+            query = query.filter_by(waste_type=waste_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityWaste.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityWaste.measurement_date <= datetime.fromisoformat(end_date))
+        
+        waste_records = query.all()
+        return format_response([record.to_dict() for record in waste_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Energy Routes
+@sustainability_bp.route('/energy', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_energy():
+    """Get all sustainability energy records with optional filters"""
+    try:
+        energy_type = request.args.get('energy_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityEnergy.query
+        
+        if energy_type:
+            query = query.filter_by(energy_type=energy_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityEnergy.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityEnergy.measurement_date <= datetime.fromisoformat(end_date))
+        
+        energy_records = query.all()
+        return format_response([record.to_dict() for record in energy_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Water Routes
+@sustainability_bp.route('/water', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_water():
+    """Get all sustainability water records with optional filters"""
+    try:
+        water_type = request.args.get('water_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityWater.query
+        
+        if water_type:
+            query = query.filter_by(water_type=water_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityWater.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityWater.measurement_date <= datetime.fromisoformat(end_date))
+        
+        water_records = query.all()
+        return format_response([record.to_dict() for record in water_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Transport Routes
+@sustainability_bp.route('/transport', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_transport():
+    """Get all sustainability transport records with optional filters"""
+    try:
+        transport_type = request.args.get('transport_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityTransport.query
+        
+        if transport_type:
+            query = query.filter_by(transport_type=transport_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityTransport.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityTransport.measurement_date <= datetime.fromisoformat(end_date))
+        
+        transport_records = query.all()
+        return format_response([record.to_dict() for record in transport_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Food Routes
+@sustainability_bp.route('/food', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_food():
+    """Get all sustainability food records with optional filters"""
+    try:
+        food_type = request.args.get('food_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityFood.query
+        
+        if food_type:
+            query = query.filter_by(food_type=food_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityFood.measurement_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityFood.measurement_date <= datetime.fromisoformat(end_date))
+        
+        food_records = query.all()
+        return format_response([record.to_dict() for record in food_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Education Routes
+@sustainability_bp.route('/education', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_education():
+    """Get all sustainability education records with optional filters"""
+    try:
+        education_type = request.args.get('education_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityEducation.query
+        
+        if education_type:
+            query = query.filter_by(education_type=education_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityEducation.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityEducation.end_date <= datetime.fromisoformat(end_date))
+        
+        education_records = query.all()
+        return format_response([record.to_dict() for record in education_records])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Policy Routes
+@sustainability_bp.route('/policies', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_policies():
+    """Get all sustainability policies with optional filters"""
+    try:
+        policy_type = request.args.get('policy_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityPolicy.query
+        
+        if policy_type:
+            query = query.filter_by(policy_type=policy_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityPolicy.effective_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityPolicy.effective_date <= datetime.fromisoformat(end_date))
+        
+        policies = query.all()
+        return format_response([policy.to_dict() for policy in policies])
+    except Exception as e:
+        return handle_exception(e)
+
+# Sustainability Award Routes
+@sustainability_bp.route('/awards', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'sustainability_manager'])
+def get_sustainability_awards():
+    """Get all sustainability awards with optional filters"""
+    try:
+        award_type = request.args.get('award_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = SustainabilityAward.query
+        
+        if award_type:
+            query = query.filter_by(award_type=award_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(SustainabilityAward.award_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(SustainabilityAward.award_date <= datetime.fromisoformat(end_date))
+        
+        awards = query.all()
+        return format_response([award.to_dict() for award in awards])
+    except Exception as e:
+        return handle_exception(e) 

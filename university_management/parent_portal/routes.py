@@ -2,7 +2,8 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     Parent, StudentParent, ParentNotification, ParentAccessLog,
-    ParentMeeting, ParentFeedback, ParentDocument, ParentMessage
+    ParentMeeting, ParentFeedback, ParentDocument, ParentMessage,
+    Student, Communication, Attendance, Grade, Payment, Document, Notification, Meeting, Permission
 )
 from .. import db
 from datetime import datetime
@@ -270,59 +271,291 @@ def delete_document(id):
 # Parent Portal Routes
 @parent_portal_bp.route('/parents', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'staff'])
-def get_parents_portal():
-    """Get all parent profiles"""
-    student_id = request.args.get('student_id')
-    relationship = request.args.get('relationship')
-    
-    query = Parent.query
-    
-    if student_id:
-        query = query.filter_by(student_id=student_id)
-    if relationship:
-        query = query.filter_by(relationship=relationship)
-    
-    parents = query.all()
-    return jsonify({
-        'status': 'success',
-        'data': [parent.to_dict() for parent in parents]
-    }), 200
+@role_required(['admin', 'parent'])
+def get_parents():
+    """Get all parents with optional filters"""
+    try:
+        parent_id = request.args.get('parent_id')
+        student_id = request.args.get('student_id')
+        status = request.args.get('status')
+        
+        query = Parent.query
+        
+        if parent_id:
+            query = query.filter_by(id=parent_id)
+        if student_id:
+            query = query.join(Student).filter(Student.id == student_id)
+        if status:
+            query = query.filter_by(status=status)
+        
+        parents = query.all()
+        return format_response([parent.to_dict() for parent in parents])
+    except Exception as e:
+        return handle_exception(e)
 
-@parent_portal_bp.route('/parents/<int:id>', methods=['GET'])
+@parent_portal_bp.route('/students', methods=['GET'])
 @jwt_required()
-def get_parent_portal(id):
-    """Get specific parent profile"""
-    parent = Parent.query.get_or_404(id)
-    return jsonify({
-        'status': 'success',
-        'data': parent.to_dict()
-    }), 200
+@role_required(['admin', 'parent'])
+def get_students():
+    """Get all students with optional filters"""
+    try:
+        parent_id = request.args.get('parent_id')
+        grade_level = request.args.get('grade_level')
+        status = request.args.get('status')
+        
+        query = Student.query
+        
+        if parent_id:
+            query = query.join(Parent).filter(Parent.id == parent_id)
+        if grade_level:
+            query = query.filter_by(grade_level=grade_level)
+        if status:
+            query = query.filter_by(status=status)
+        
+        students = query.all()
+        return format_response([student.to_dict() for student in students])
+    except Exception as e:
+        return handle_exception(e)
 
-@parent_portal_bp.route('/parents', methods=['POST'])
+@parent_portal_bp.route('/communications', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'staff'])
-def create_parent_portal():
-    """Create new parent profile"""
-    data = request.get_json()
-    
-    parent = Parent(
-        user_id=data['user_id'],
-        student_id=data['student_id'],
-        relationship=data['relationship'],
-        is_primary=data.get('is_primary', False),
-        can_view_grades=data.get('can_view_grades', True),
-        can_view_attendance=data.get('can_view_attendance', True),
-        can_view_discipline=data.get('can_view_discipline', True)
-    )
-    
-    db.session.add(parent)
-    db.session.commit()
-    
-    return jsonify({
-        'status': 'success',
-        'data': parent.to_dict()
-    }), 201
+@role_required(['admin', 'parent'])
+def get_communications():
+    """Get all communications with optional filters"""
+    try:
+        parent_id = request.args.get('parent_id')
+        student_id = request.args.get('student_id')
+        communication_type = request.args.get('communication_type')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Communication.query
+        
+        if parent_id:
+            query = query.filter_by(parent_id=parent_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if communication_type:
+            query = query.filter_by(communication_type=communication_type)
+        if start_date:
+            query = query.filter(Communication.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Communication.date <= datetime.fromisoformat(end_date))
+        
+        communications = query.all()
+        return format_response([comm.to_dict() for comm in communications])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/attendance', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_attendance():
+    """Get all attendance records with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        attendance_type = request.args.get('attendance_type')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Attendance.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if attendance_type:
+            query = query.filter_by(attendance_type=attendance_type)
+        if start_date:
+            query = query.filter(Attendance.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Attendance.date <= datetime.fromisoformat(end_date))
+        
+        attendance_records = query.all()
+        return format_response([record.to_dict() for record in attendance_records])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/grades', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_grades():
+    """Get all grades with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        subject = request.args.get('subject')
+        term = request.args.get('term')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Grade.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if subject:
+            query = query.filter_by(subject=subject)
+        if term:
+            query = query.filter_by(term=term)
+        if start_date:
+            query = query.filter(Grade.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Grade.date <= datetime.fromisoformat(end_date))
+        
+        grades = query.all()
+        return format_response([grade.to_dict() for grade in grades])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/payments', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_payments():
+    """Get all payments with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        payment_type = request.args.get('payment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Payment.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if payment_type:
+            query = query.filter_by(payment_type=payment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Payment.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Payment.date <= datetime.fromisoformat(end_date))
+        
+        payments = query.all()
+        return format_response([payment.to_dict() for payment in payments])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/documents', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_documents():
+    """Get all documents with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        document_type = request.args.get('document_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Document.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if document_type:
+            query = query.filter_by(document_type=document_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Document.upload_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Document.upload_date <= datetime.fromisoformat(end_date))
+        
+        documents = query.all()
+        return format_response([doc.to_dict() for doc in documents])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_notifications():
+    """Get all notifications with optional filters"""
+    try:
+        parent_id = request.args.get('parent_id')
+        notification_type = request.args.get('notification_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Notification.query
+        
+        if parent_id:
+            query = query.filter_by(parent_id=parent_id)
+        if notification_type:
+            query = query.filter_by(notification_type=notification_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Notification.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Notification.date <= datetime.fromisoformat(end_date))
+        
+        notifications = query.all()
+        return format_response([notif.to_dict() for notif in notifications])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/meetings', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_meetings():
+    """Get all meetings with optional filters"""
+    try:
+        parent_id = request.args.get('parent_id')
+        student_id = request.args.get('student_id')
+        meeting_type = request.args.get('meeting_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Meeting.query
+        
+        if parent_id:
+            query = query.filter_by(parent_id=parent_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if meeting_type:
+            query = query.filter_by(meeting_type=meeting_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Meeting.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Meeting.date <= datetime.fromisoformat(end_date))
+        
+        meetings = query.all()
+        return format_response([meeting.to_dict() for meeting in meetings])
+    except Exception as e:
+        return handle_exception(e)
+
+@parent_portal_bp.route('/permissions', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'parent'])
+def get_permissions():
+    """Get all permissions with optional filters"""
+    try:
+        student_id = request.args.get('student_id')
+        permission_type = request.args.get('permission_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Permission.query
+        
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if permission_type:
+            query = query.filter_by(permission_type=permission_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Permission.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Permission.date <= datetime.fromisoformat(end_date))
+        
+        permissions = query.all()
+        return format_response([perm.to_dict() for perm in permissions])
+    except Exception as e:
+        return handle_exception(e)
 
 # Parent Message Routes
 @parent_portal_bp.route('/messages', methods=['GET'])

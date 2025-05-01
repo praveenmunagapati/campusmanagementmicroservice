@@ -1,206 +1,320 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Employee, LeaveRequest, PerformanceReview, TrainingProgram
-from .. import db
+from .models import Employee, Department, Position, Leave, Attendance, Payroll, Training, Performance, Recruitment, Document, Benefit
+from . import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 hr_bp = Blueprint('hr', __name__)
 
-# Employee Routes
 @hr_bp.route('/employees', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'hr_staff'])
 def get_employees():
-    """Get all employees"""
-    employees = Employee.query.all()
-    return jsonify([employee.to_dict() for employee in employees])
+    """Get all employees with optional filters"""
+    try:
+        department_id = request.args.get('department_id')
+        position_id = request.args.get('position_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Employee.query
+        
+        if department_id:
+            query = query.filter_by(department_id=department_id)
+        if position_id:
+            query = query.filter_by(position_id=position_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Employee.hire_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Employee.hire_date <= datetime.fromisoformat(end_date))
+        
+        employees = query.all()
+        return format_response([employee.to_dict() for employee in employees])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/employees/<int:id>', methods=['GET'])
+@hr_bp.route('/departments', methods=['GET'])
 @jwt_required()
-def get_employee_by_id(id):
-    """Get specific employee by ID"""
-    employee = Employee.query.get_or_404(id)
-    return jsonify(employee.to_dict())
+@role_required(['admin', 'hr_staff'])
+def get_departments():
+    """Get all departments with optional filters"""
+    try:
+        department_type = request.args.get('department_type')
+        status = request.args.get('status')
+        
+        query = Department.query
+        
+        if department_type:
+            query = query.filter_by(department_type=department_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        departments = query.all()
+        return format_response([dept.to_dict() for dept in departments])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/employees', methods=['POST'])
+@hr_bp.route('/positions', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'hr'])
-def create_employee():
-    """Create new employee"""
-    data = request.get_json()
-    new_employee = Employee(**data)
-    db.session.add(new_employee)
-    db.session.commit()
-    return jsonify(new_employee.to_dict()), 201
+@role_required(['admin', 'hr_staff'])
+def get_positions():
+    """Get all positions with optional filters"""
+    try:
+        department_id = request.args.get('department_id')
+        position_type = request.args.get('position_type')
+        status = request.args.get('status')
+        
+        query = Position.query
+        
+        if department_id:
+            query = query.filter_by(department_id=department_id)
+        if position_type:
+            query = query.filter_by(position_type=position_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        positions = query.all()
+        return format_response([position.to_dict() for position in positions])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/employees/<int:id>', methods=['PUT'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def update_employee(id):
-    """Update existing employee"""
-    employee = Employee.query.get_or_404(id)
-    data = request.get_json()
-    for key, value in data.items():
-        setattr(employee, key, value)
-    db.session.commit()
-    return jsonify(employee.to_dict())
-
-@hr_bp.route('/employees/<int:id>', methods=['DELETE'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def delete_employee(id):
-    """Delete employee"""
-    employee = Employee.query.get_or_404(id)
-    db.session.delete(employee)
-    db.session.commit()
-    return '', 204
-
-# Leave Request Routes
 @hr_bp.route('/leaves', methods=['GET'])
 @jwt_required()
-def get_leave_requests():
-    """Get all leave requests"""
-    leaves = LeaveRequest.query.all()
-    return jsonify([leave.to_dict() for leave in leaves])
+@role_required(['admin', 'hr_staff'])
+def get_leaves():
+    """Get all leave records with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        leave_type = request.args.get('leave_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Leave.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if leave_type:
+            query = query.filter_by(leave_type=leave_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Leave.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Leave.end_date <= datetime.fromisoformat(end_date))
+        
+        leaves = query.all()
+        return format_response([leave.to_dict() for leave in leaves])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/leaves', methods=['POST'])
+@hr_bp.route('/attendance', methods=['GET'])
 @jwt_required()
-def create_leave_request():
-    """Create new leave request"""
-    data = request.get_json()
-    new_leave = LeaveRequest(**data)
-    db.session.add(new_leave)
-    db.session.commit()
-    return jsonify(new_leave.to_dict()), 201
+@role_required(['admin', 'hr_staff'])
+def get_attendance():
+    """Get all attendance records with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        attendance_type = request.args.get('attendance_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Attendance.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if attendance_type:
+            query = query.filter_by(attendance_type=attendance_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Attendance.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Attendance.date <= datetime.fromisoformat(end_date))
+        
+        attendance_records = query.all()
+        return format_response([record.to_dict() for record in attendance_records])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/employees/<int:employee_id>/leaves', methods=['GET'])
+@hr_bp.route('/payroll', methods=['GET'])
 @jwt_required()
-def get_employee_leave_requests(employee_id):
-    """Get leave requests for specific employee"""
-    leaves = LeaveRequest.query.filter_by(employee_id=employee_id).all()
-    return jsonify([leave.to_dict() for leave in leaves])
+@role_required(['admin', 'hr_staff'])
+def get_payroll():
+    """Get all payroll records with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        payroll_type = request.args.get('payroll_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Payroll.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if payroll_type:
+            query = query.filter_by(payroll_type=payroll_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Payroll.pay_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Payroll.pay_date <= datetime.fromisoformat(end_date))
+        
+        payroll_records = query.all()
+        return format_response([record.to_dict() for record in payroll_records])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/leaves/<int:id>', methods=['PUT'])
+@hr_bp.route('/training', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'hr'])
-def update_leave_request(id):
-    """Update existing leave request"""
-    leave = LeaveRequest.query.get_or_404(id)
-    data = request.get_json()
-    for key, value in data.items():
-        setattr(leave, key, value)
-    db.session.commit()
-    return jsonify(leave.to_dict())
+@role_required(['admin', 'hr_staff'])
+def get_training():
+    """Get all training records with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        training_type = request.args.get('training_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Training.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if training_type:
+            query = query.filter_by(training_type=training_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Training.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Training.end_date <= datetime.fromisoformat(end_date))
+        
+        training_records = query.all()
+        return format_response([record.to_dict() for record in training_records])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/leaves/<int:id>', methods=['DELETE'])
+@hr_bp.route('/performance', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'hr'])
-def delete_leave_request(id):
-    """Delete leave request"""
-    leave = LeaveRequest.query.get_or_404(id)
-    db.session.delete(leave)
-    db.session.commit()
-    return '', 204
+@role_required(['admin', 'hr_staff'])
+def get_performance():
+    """Get all performance records with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        review_type = request.args.get('review_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Performance.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if review_type:
+            query = query.filter_by(review_type=review_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Performance.review_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Performance.review_date <= datetime.fromisoformat(end_date))
+        
+        performance_records = query.all()
+        return format_response([record.to_dict() for record in performance_records])
+    except Exception as e:
+        return handle_exception(e)
 
-# Performance Review Routes
-@hr_bp.route('/performance-reviews', methods=['GET'])
+@hr_bp.route('/recruitment', methods=['GET'])
 @jwt_required()
-def get_performance_reviews():
-    """Get all performance reviews"""
-    reviews = PerformanceReview.query.all()
-    return jsonify([review.to_dict() for review in reviews])
+@role_required(['admin', 'hr_staff'])
+def get_recruitment():
+    """Get all recruitment records with optional filters"""
+    try:
+        position_id = request.args.get('position_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Recruitment.query
+        
+        if position_id:
+            query = query.filter_by(position_id=position_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Recruitment.application_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Recruitment.application_date <= datetime.fromisoformat(end_date))
+        
+        recruitment_records = query.all()
+        return format_response([record.to_dict() for record in recruitment_records])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/performance-reviews', methods=['POST'])
+@hr_bp.route('/documents', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'hr'])
-def create_performance_review():
-    """Create new performance review"""
-    data = request.get_json()
-    new_review = PerformanceReview(**data)
-    db.session.add(new_review)
-    db.session.commit()
-    return jsonify(new_review.to_dict()), 201
+@role_required(['admin', 'hr_staff'])
+def get_documents():
+    """Get all HR documents with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        document_type = request.args.get('document_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Document.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if document_type:
+            query = query.filter_by(document_type=document_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Document.upload_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Document.upload_date <= datetime.fromisoformat(end_date))
+        
+        documents = query.all()
+        return format_response([doc.to_dict() for doc in documents])
+    except Exception as e:
+        return handle_exception(e)
 
-@hr_bp.route('/employees/<int:employee_id>/performance-reviews', methods=['GET'])
+@hr_bp.route('/benefits', methods=['GET'])
 @jwt_required()
-def get_employee_performance_reviews(employee_id):
-    """Get performance reviews for specific employee"""
-    reviews = PerformanceReview.query.filter_by(employee_id=employee_id).all()
-    return jsonify([review.to_dict() for review in reviews])
-
-@hr_bp.route('/performance-reviews/<int:id>', methods=['PUT'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def update_performance_review(id):
-    """Update existing performance review"""
-    review = PerformanceReview.query.get_or_404(id)
-    data = request.get_json()
-    for key, value in data.items():
-        setattr(review, key, value)
-    db.session.commit()
-    return jsonify(review.to_dict())
-
-@hr_bp.route('/performance-reviews/<int:id>', methods=['DELETE'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def delete_performance_review(id):
-    """Delete performance review"""
-    review = PerformanceReview.query.get_or_404(id)
-    db.session.delete(review)
-    db.session.commit()
-    return '', 204
-
-@hr_bp.route('/reviewers/<int:reviewer_id>/performance-reviews', methods=['GET'])
-@jwt_required()
-def get_reviewer_performance_reviews(reviewer_id):
-    """Get performance reviews given by specific reviewer"""
-    reviews = PerformanceReview.query.filter_by(reviewer_id=reviewer_id).all()
-    return jsonify([review.to_dict() for review in reviews])
-
-# Training Program Routes
-@hr_bp.route('/training-programs', methods=['GET'])
-@jwt_required()
-def get_training_programs():
-    """Get all training programs"""
-    programs = TrainingProgram.query.all()
-    return jsonify([program.to_dict() for program in programs])
-
-@hr_bp.route('/training-programs', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def create_training_program():
-    """Create new training program"""
-    data = request.get_json()
-    new_program = TrainingProgram(**data)
-    db.session.add(new_program)
-    db.session.commit()
-    return jsonify(new_program.to_dict()), 201
-
-@hr_bp.route('/training-programs/<int:id>', methods=['GET'])
-@jwt_required()
-def get_training_program_by_id(id):
-    """Get specific training program by ID"""
-    program = TrainingProgram.query.get_or_404(id)
-    return jsonify(program.to_dict())
-
-@hr_bp.route('/training-programs/<int:id>', methods=['PUT'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def update_training_program(id):
-    """Update existing training program"""
-    program = TrainingProgram.query.get_or_404(id)
-    data = request.get_json()
-    for key, value in data.items():
-        setattr(program, key, value)
-    db.session.commit()
-    return jsonify(program.to_dict())
-
-@hr_bp.route('/training-programs/<int:id>', methods=['DELETE'])
-@jwt_required()
-@role_required(['admin', 'hr'])
-def delete_training_program(id):
-    """Delete training program"""
-    program = TrainingProgram.query.get_or_404(id)
-    db.session.delete(program)
-    db.session.commit()
-    return '', 204 
+@role_required(['admin', 'hr_staff'])
+def get_benefits():
+    """Get all benefits with optional filters"""
+    try:
+        employee_id = request.args.get('employee_id')
+        benefit_type = request.args.get('benefit_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Benefit.query
+        
+        if employee_id:
+            query = query.filter_by(employee_id=employee_id)
+        if benefit_type:
+            query = query.filter_by(benefit_type=benefit_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Benefit.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Benefit.end_date <= datetime.fromisoformat(end_date))
+        
+        benefits = query.all()
+        return format_response([benefit.to_dict() for benefit in benefits])
+    except Exception as e:
+        return handle_exception(e) 

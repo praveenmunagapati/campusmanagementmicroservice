@@ -1,216 +1,281 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Alumni, AlumniEvent, Donation, AlumniGroup, CareerUpdate, Mentorship, AlumniAchievement
+from .models import Alumni, AlumniEvent, AlumniDonation, AlumniNetwork, AlumniJob, AlumniEducation, AlumniAchievement, AlumniContact, AlumniGroup, AlumniSurvey
 from . import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 alumni_bp = Blueprint('alumni', __name__)
 
-# Alumni Profile Routes
-@alumni_bp.route('/profiles', methods=['GET'])
+@alumni_bp.route('/alumni', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'alumni_staff', 'alumni'])
 def get_alumni():
-    alumni = Alumni.query.all()
-    return jsonify([{
-        'id': a.id,
-        'user_id': a.user_id,
-        'graduation_year': a.graduation_year,
-        'degree': a.degree,
-        'current_position': a.current_position,
-        'company': a.company,
-        'status': a.status
-    } for a in alumni])
+    """Get all alumni with optional filters"""
+    try:
+        graduation_year = request.args.get('graduation_year')
+        program = request.args.get('program')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Alumni.query
+        
+        if graduation_year:
+            query = query.filter_by(graduation_year=graduation_year)
+        if program:
+            query = query.filter_by(program=program)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Alumni.graduation_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Alumni.graduation_date <= datetime.fromisoformat(end_date))
+        
+        alumni = query.all()
+        return format_response([alum.to_dict() for alum in alumni])
+    except Exception as e:
+        return handle_exception(e)
 
-@alumni_bp.route('/profiles', methods=['POST'])
-@jwt_required()
-def create_alumni():
-    data = request.get_json()
-    alumni = Alumni(
-        user_id=data['user_id'],
-        graduation_year=data['graduation_year'],
-        degree=data['degree'],
-        current_position=data.get('current_position'),
-        company=data.get('company'),
-        status=data.get('status', 'active')
-    )
-    db.session.add(alumni)
-    db.session.commit()
-    return jsonify({'message': 'Alumni profile created successfully', 'id': alumni.id}), 201
-
-# Alumni Event Routes
 @alumni_bp.route('/events', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'alumni_staff', 'alumni'])
 def get_events():
-    events = AlumniEvent.query.all()
-    return jsonify([{
-        'id': e.id,
-        'title': e.title,
-        'description': e.description,
-        'event_date': e.event_date.isoformat(),
-        'location': e.location,
-        'status': e.status
-    } for e in events])
+    """Get all alumni events with optional filters"""
+    try:
+        event_type = request.args.get('event_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniEvent.query
+        
+        if event_type:
+            query = query.filter_by(event_type=event_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniEvent.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniEvent.date <= datetime.fromisoformat(end_date))
+        
+        events = query.all()
+        return format_response([event.to_dict() for event in events])
+    except Exception as e:
+        return handle_exception(e)
 
-@alumni_bp.route('/events', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'alumni'])
-def create_event():
-    data = request.get_json()
-    event = AlumniEvent(
-        title=data['title'],
-        description=data['description'],
-        event_date=datetime.fromisoformat(data['event_date']),
-        location=data['location'],
-        status=data.get('status', 'scheduled')
-    )
-    db.session.add(event)
-    db.session.commit()
-    return jsonify({'message': 'Alumni event created successfully', 'id': event.id}), 201
-
-# Donation Routes
 @alumni_bp.route('/donations', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni', 'finance'])
+@role_required(['admin', 'alumni_staff'])
 def get_donations():
-    donations = Donation.query.all()
-    return jsonify([{
-        'id': d.id,
-        'alumni_id': d.alumni_id,
-        'amount': d.amount,
-        'currency': d.currency,
-        'donation_date': d.donation_date.isoformat(),
-        'purpose': d.purpose,
-        'status': d.status
-    } for d in donations])
+    """Get all alumni donations with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        donation_type = request.args.get('donation_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniDonation.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if donation_type:
+            query = query.filter_by(donation_type=donation_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniDonation.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniDonation.date <= datetime.fromisoformat(end_date))
+        
+        donations = query.all()
+        return format_response([donation.to_dict() for donation in donations])
+    except Exception as e:
+        return handle_exception(e)
 
-@alumni_bp.route('/donations', methods=['POST'])
+@alumni_bp.route('/network', methods=['GET'])
 @jwt_required()
-def create_donation():
-    data = request.get_json()
-    donation = Donation(
-        alumni_id=data['alumni_id'],
-        amount=data['amount'],
-        currency=data['currency'],
-        donation_date=datetime.fromisoformat(data['donation_date']),
-        purpose=data.get('purpose'),
-        status=data.get('status', 'completed')
-    )
-    db.session.add(donation)
-    db.session.commit()
-    return jsonify({'message': 'Donation recorded successfully', 'id': donation.id}), 201
+@role_required(['admin', 'alumni_staff', 'alumni'])
+def get_network():
+    """Get all alumni network connections with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        connection_type = request.args.get('connection_type')
+        status = request.args.get('status')
+        
+        query = AlumniNetwork.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if connection_type:
+            query = query.filter_by(connection_type=connection_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        connections = query.all()
+        return format_response([conn.to_dict() for conn in connections])
+    except Exception as e:
+        return handle_exception(e)
 
-# Alumni Group Routes
-@alumni_bp.route('/groups', methods=['GET'])
+@alumni_bp.route('/jobs', methods=['GET'])
 @jwt_required()
-def get_groups():
-    groups = AlumniGroup.query.all()
-    return jsonify([{
-        'id': g.id,
-        'name': g.name,
-        'description': g.description,
-        'created_date': g.created_date.isoformat(),
-        'status': g.status
-    } for g in groups])
+@role_required(['admin', 'alumni_staff', 'alumni'])
+def get_jobs():
+    """Get all alumni jobs with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        job_type = request.args.get('job_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniJob.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if job_type:
+            query = query.filter_by(job_type=job_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniJob.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniJob.end_date <= datetime.fromisoformat(end_date))
+        
+        jobs = query.all()
+        return format_response([job.to_dict() for job in jobs])
+    except Exception as e:
+        return handle_exception(e)
 
-@alumni_bp.route('/groups', methods=['POST'])
+@alumni_bp.route('/education', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni'])
-def create_group():
-    data = request.get_json()
-    group = AlumniGroup(
-        name=data['name'],
-        description=data.get('description'),
-        created_date=datetime.fromisoformat(data['created_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(group)
-    db.session.commit()
-    return jsonify({'message': 'Alumni group created successfully', 'id': group.id}), 201
+@role_required(['admin', 'alumni_staff', 'alumni'])
+def get_education():
+    """Get all alumni education records with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        degree_type = request.args.get('degree_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniEducation.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if degree_type:
+            query = query.filter_by(degree_type=degree_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniEducation.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniEducation.end_date <= datetime.fromisoformat(end_date))
+        
+        education_records = query.all()
+        return format_response([record.to_dict() for record in education_records])
+    except Exception as e:
+        return handle_exception(e)
 
-# Career Update Routes
-@alumni_bp.route('/career-updates', methods=['GET'])
-@jwt_required()
-def get_career_updates():
-    updates = CareerUpdate.query.all()
-    return jsonify([{
-        'id': u.id,
-        'alumni_id': u.alumni_id,
-        'position': u.position,
-        'company': u.company,
-        'update_date': u.update_date.isoformat(),
-        'status': u.status
-    } for u in updates])
-
-@alumni_bp.route('/career-updates', methods=['POST'])
-@jwt_required()
-def create_career_update():
-    data = request.get_json()
-    update = CareerUpdate(
-        alumni_id=data['alumni_id'],
-        position=data['position'],
-        company=data['company'],
-        update_date=datetime.fromisoformat(data['update_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(update)
-    db.session.commit()
-    return jsonify({'message': 'Career update recorded successfully', 'id': update.id}), 201
-
-# Mentorship Routes
-@alumni_bp.route('/mentorships', methods=['GET'])
-@jwt_required()
-def get_mentorships():
-    mentorships = Mentorship.query.all()
-    return jsonify([{
-        'id': m.id,
-        'alumni_id': m.alumni_id,
-        'student_id': m.student_id,
-        'start_date': m.start_date.isoformat(),
-        'end_date': m.end_date.isoformat() if m.end_date else None,
-        'status': m.status
-    } for m in mentorships])
-
-@alumni_bp.route('/mentorships', methods=['POST'])
-@jwt_required()
-def create_mentorship():
-    data = request.get_json()
-    mentorship = Mentorship(
-        alumni_id=data['alumni_id'],
-        student_id=data['student_id'],
-        start_date=datetime.fromisoformat(data['start_date']),
-        end_date=datetime.fromisoformat(data['end_date']) if data.get('end_date') else None,
-        status=data.get('status', 'active')
-    )
-    db.session.add(mentorship)
-    db.session.commit()
-    return jsonify({'message': 'Mentorship created successfully', 'id': mentorship.id}), 201
-
-# Alumni Achievement Routes
 @alumni_bp.route('/achievements', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'alumni_staff', 'alumni'])
 def get_achievements():
-    achievements = AlumniAchievement.query.all()
-    return jsonify([{
-        'id': a.id,
-        'alumni_id': a.alumni_id,
-        'title': a.title,
-        'description': a.description,
-        'achievement_date': a.achievement_date.isoformat(),
-        'status': a.status
-    } for a in achievements])
+    """Get all alumni achievements with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        achievement_type = request.args.get('achievement_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniAchievement.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if achievement_type:
+            query = query.filter_by(achievement_type=achievement_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniAchievement.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniAchievement.date <= datetime.fromisoformat(end_date))
+        
+        achievements = query.all()
+        return format_response([achievement.to_dict() for achievement in achievements])
+    except Exception as e:
+        return handle_exception(e)
 
-@alumni_bp.route('/achievements', methods=['POST'])
+@alumni_bp.route('/contacts', methods=['GET'])
 @jwt_required()
-def create_achievement():
-    data = request.get_json()
-    achievement = AlumniAchievement(
-        alumni_id=data['alumni_id'],
-        title=data['title'],
-        description=data['description'],
-        achievement_date=datetime.fromisoformat(data['achievement_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(achievement)
-    db.session.commit()
-    return jsonify({'message': 'Alumni achievement recorded successfully', 'id': achievement.id}), 201 
+@role_required(['admin', 'alumni_staff'])
+def get_contacts():
+    """Get all alumni contacts with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        contact_type = request.args.get('contact_type')
+        status = request.args.get('status')
+        
+        query = AlumniContact.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if contact_type:
+            query = query.filter_by(contact_type=contact_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        contacts = query.all()
+        return format_response([contact.to_dict() for contact in contacts])
+    except Exception as e:
+        return handle_exception(e)
+
+@alumni_bp.route('/groups', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'alumni_staff', 'alumni'])
+def get_groups():
+    """Get all alumni groups with optional filters"""
+    try:
+        group_type = request.args.get('group_type')
+        status = request.args.get('status')
+        
+        query = AlumniGroup.query
+        
+        if group_type:
+            query = query.filter_by(group_type=group_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        groups = query.all()
+        return format_response([group.to_dict() for group in groups])
+    except Exception as e:
+        return handle_exception(e)
+
+@alumni_bp.route('/surveys', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'alumni_staff'])
+def get_surveys():
+    """Get all alumni surveys with optional filters"""
+    try:
+        survey_type = request.args.get('survey_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniSurvey.query
+        
+        if survey_type:
+            query = query.filter_by(survey_type=survey_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniSurvey.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniSurvey.end_date <= datetime.fromisoformat(end_date))
+        
+        surveys = query.all()
+        return format_response([survey.to_dict() for survey in surveys])
+    except Exception as e:
+        return handle_exception(e) 

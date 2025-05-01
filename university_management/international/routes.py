@@ -3,7 +3,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     ExchangeProgram, PartnerInstitution, ExchangeApplication, VisaApplication,
     InternationalStudent, LanguageProficiency, CulturalEvent, EventRegistration,
-    InternationalEvent
+    InternationalEvent, StudyAbroad, InternationalPartnership, ImmigrationDocument,
+    InternationalScholarship, LanguageProgram, InternationalAlumni, InternationalStaff,
+    InternationalOffice, InternationalAgreement, InternationalConference, InternationalResearch
 )
 from .. import db
 from datetime import datetime
@@ -15,13 +17,30 @@ international_bp = Blueprint('international', __name__)
 # Exchange Program Routes
 @international_bp.route('/exchange-programs', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'international_office'])
 def get_exchange_programs():
-    """Get all exchange programs"""
-    programs = ExchangeProgram.query.all()
-    return jsonify({
-        'status': 'success',
-        'data': [program.to_dict() for program in programs]
-    }), 200
+    """Get all exchange programs with optional filters"""
+    try:
+        program_type = request.args.get('program_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ExchangeProgram.query
+        
+        if program_type:
+            query = query.filter_by(program_type=program_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ExchangeProgram.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ExchangeProgram.end_date <= datetime.fromisoformat(end_date))
+        
+        programs = query.all()
+        return format_response([program.to_dict() for program in programs])
+    except Exception as e:
+        return handle_exception(e)
 
 @international_bp.route('/exchange-programs/<int:id>', methods=['GET'])
 @jwt_required()
@@ -187,11 +206,30 @@ def update_exchange_application(id):
 # Visa Application Routes
 @international_bp.route('/visa-applications', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'international'])
+@role_required(['admin', 'international_office'])
 def get_visa_applications():
-    """Get all visa applications"""
-    applications = VisaApplication.query.all()
-    return jsonify([application.to_dict() for application in applications])
+    """Get all visa applications with optional filters"""
+    try:
+        visa_type = request.args.get('visa_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = VisaApplication.query
+        
+        if visa_type:
+            query = query.filter_by(visa_type=visa_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(VisaApplication.application_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(VisaApplication.application_date <= datetime.fromisoformat(end_date))
+        
+        applications = query.all()
+        return format_response([application.to_dict() for application in applications])
+    except Exception as e:
+        return handle_exception(e)
 
 @international_bp.route('/visa-applications/<int:id>', methods=['GET'])
 @jwt_required()
@@ -225,14 +263,33 @@ def update_visa_application(id):
 # International Student Routes
 @international_bp.route('/students', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'international'])
+@role_required(['admin', 'international_office'])
 def get_international_students():
-    """Get all international students"""
-    students = InternationalStudent.query.all()
-    return jsonify({
-        'status': 'success',
-        'data': [student.to_dict() for student in students]
-    }), 200
+    """Get all international students with optional filters"""
+    try:
+        country = request.args.get('country')
+        program = request.args.get('program')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalStudent.query
+        
+        if country:
+            query = query.filter_by(country=country)
+        if program:
+            query = query.filter_by(program=program)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalStudent.enrollment_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalStudent.enrollment_date <= datetime.fromisoformat(end_date))
+        
+        students = query.all()
+        return format_response([student.to_dict() for student in students])
+    except Exception as e:
+        return handle_exception(e)
 
 @international_bp.route('/students/<int:id>', methods=['GET'])
 @jwt_required()
@@ -322,10 +379,30 @@ def update_language_proficiency(id):
 # Cultural Event Routes
 @international_bp.route('/cultural-events', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'international_office'])
 def get_cultural_events():
-    """Get all cultural events"""
-    events = CulturalEvent.query.all()
-    return jsonify([event.to_dict() for event in events])
+    """Get all cultural events with optional filters"""
+    try:
+        event_type = request.args.get('event_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = CulturalEvent.query
+        
+        if event_type:
+            query = query.filter_by(event_type=event_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(CulturalEvent.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(CulturalEvent.end_date <= datetime.fromisoformat(end_date))
+        
+        events = query.all()
+        return format_response([event.to_dict() for event in events])
+    except Exception as e:
+        return handle_exception(e)
 
 @international_bp.route('/cultural-events/<int:id>', methods=['GET'])
 @jwt_required()
@@ -448,4 +525,315 @@ def create_international_event():
     return jsonify({
         'status': 'success',
         'data': event.to_dict()
-    }), 201 
+    }), 201
+
+# Study Abroad Routes
+@international_bp.route('/study-abroad', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_study_abroad():
+    """Get all study abroad programs with optional filters"""
+    try:
+        destination = request.args.get('destination')
+        program_type = request.args.get('program_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = StudyAbroad.query
+        
+        if destination:
+            query = query.filter_by(destination=destination)
+        if program_type:
+            query = query.filter_by(program_type=program_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(StudyAbroad.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(StudyAbroad.end_date <= datetime.fromisoformat(end_date))
+        
+        programs = query.all()
+        return format_response([program.to_dict() for program in programs])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Partnership Routes
+@international_bp.route('/partnerships', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_partnerships():
+    """Get all international partnerships with optional filters"""
+    try:
+        partner_type = request.args.get('partner_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalPartnership.query
+        
+        if partner_type:
+            query = query.filter_by(partner_type=partner_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalPartnership.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalPartnership.end_date <= datetime.fromisoformat(end_date))
+        
+        partnerships = query.all()
+        return format_response([partnership.to_dict() for partnership in partnerships])
+    except Exception as e:
+        return handle_exception(e)
+
+# Immigration Document Routes
+@international_bp.route('/documents', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_immigration_documents():
+    """Get all immigration documents with optional filters"""
+    try:
+        document_type = request.args.get('document_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ImmigrationDocument.query
+        
+        if document_type:
+            query = query.filter_by(document_type=document_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ImmigrationDocument.issue_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ImmigrationDocument.issue_date <= datetime.fromisoformat(end_date))
+        
+        documents = query.all()
+        return format_response([document.to_dict() for document in documents])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Scholarship Routes
+@international_bp.route('/scholarships', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_scholarships():
+    """Get all international scholarships with optional filters"""
+    try:
+        scholarship_type = request.args.get('scholarship_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalScholarship.query
+        
+        if scholarship_type:
+            query = query.filter_by(scholarship_type=scholarship_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalScholarship.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalScholarship.end_date <= datetime.fromisoformat(end_date))
+        
+        scholarships = query.all()
+        return format_response([scholarship.to_dict() for scholarship in scholarships])
+    except Exception as e:
+        return handle_exception(e)
+
+# Language Program Routes
+@international_bp.route('/language-programs', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_language_programs():
+    """Get all language programs with optional filters"""
+    try:
+        language = request.args.get('language')
+        program_type = request.args.get('program_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = LanguageProgram.query
+        
+        if language:
+            query = query.filter_by(language=language)
+        if program_type:
+            query = query.filter_by(program_type=program_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(LanguageProgram.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(LanguageProgram.end_date <= datetime.fromisoformat(end_date))
+        
+        programs = query.all()
+        return format_response([program.to_dict() for program in programs])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Alumni Routes
+@international_bp.route('/alumni', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_alumni():
+    """Get all international alumni with optional filters"""
+    try:
+        country = request.args.get('country')
+        program = request.args.get('program')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalAlumni.query
+        
+        if country:
+            query = query.filter_by(country=country)
+        if program:
+            query = query.filter_by(program=program)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalAlumni.graduation_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalAlumni.graduation_date <= datetime.fromisoformat(end_date))
+        
+        alumni = query.all()
+        return format_response([alumnus.to_dict() for alumnus in alumni])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Staff Routes
+@international_bp.route('/staff', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_staff():
+    """Get all international staff with optional filters"""
+    try:
+        role = request.args.get('role')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalStaff.query
+        
+        if role:
+            query = query.filter_by(role=role)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalStaff.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalStaff.start_date <= datetime.fromisoformat(end_date))
+        
+        staff = query.all()
+        return format_response([member.to_dict() for member in staff])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Office Routes
+@international_bp.route('/offices', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_offices():
+    """Get all international offices with optional filters"""
+    try:
+        office_type = request.args.get('office_type')
+        status = request.args.get('status')
+        
+        query = InternationalOffice.query
+        
+        if office_type:
+            query = query.filter_by(office_type=office_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        offices = query.all()
+        return format_response([office.to_dict() for office in offices])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Agreement Routes
+@international_bp.route('/agreements', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_agreements():
+    """Get all international agreements with optional filters"""
+    try:
+        agreement_type = request.args.get('agreement_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalAgreement.query
+        
+        if agreement_type:
+            query = query.filter_by(agreement_type=agreement_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalAgreement.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalAgreement.end_date <= datetime.fromisoformat(end_date))
+        
+        agreements = query.all()
+        return format_response([agreement.to_dict() for agreement in agreements])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Conference Routes
+@international_bp.route('/conferences', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_conferences():
+    """Get all international conferences with optional filters"""
+    try:
+        conference_type = request.args.get('conference_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalConference.query
+        
+        if conference_type:
+            query = query.filter_by(conference_type=conference_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalConference.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalConference.end_date <= datetime.fromisoformat(end_date))
+        
+        conferences = query.all()
+        return format_response([conference.to_dict() for conference in conferences])
+    except Exception as e:
+        return handle_exception(e)
+
+# International Research Routes
+@international_bp.route('/research', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'international_office'])
+def get_international_research():
+    """Get all international research collaborations with optional filters"""
+    try:
+        research_type = request.args.get('research_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = InternationalResearch.query
+        
+        if research_type:
+            query = query.filter_by(research_type=research_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(InternationalResearch.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(InternationalResearch.end_date <= datetime.fromisoformat(end_date))
+        
+        research = query.all()
+        return format_response([item.to_dict() for item in research])
+    except Exception as e:
+        return handle_exception(e) 

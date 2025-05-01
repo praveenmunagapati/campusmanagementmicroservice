@@ -1,27 +1,43 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from . import db
-from .models import HealthStaff, Appointment, MedicalRecord, Prescription, HealthReport, HealthEquipment, HealthInventory
+from .models import HealthStaff, Appointment, MedicalRecord, Prescription, HealthReport, HealthEquipment, HealthInventory, Patient, Immunization, Allergy, TestResult, Treatment, Staff, Facility, Insurance, EmergencyContact
 from ..auth.models import User
 from ..auth.utils import role_required
 from datetime import datetime
+from utils import validate_request, format_response, log_activity, handle_exception
 
 health_bp = Blueprint('health', __name__)
 
 # Health Staff Routes
 @health_bp.route('/staff', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'health_staff'])
 def get_health_staff():
-    staff = HealthStaff.query.all()
-    return jsonify([{
-        'id': s.id,
-        'user_id': s.user_id,
-        'staff_type': s.staff_type,
-        'specialization': s.specialization,
-        'license_number': s.license_number,
-        'license_expiry': s.license_expiry.isoformat(),
-        'status': s.status
-    } for s in staff]), 200
+    """Get all health staff with optional filters"""
+    try:
+        staff_type = request.args.get('staff_type')
+        status = request.args.get('status')
+        
+        query = HealthStaff.query
+        
+        if staff_type:
+            query = query.filter_by(staff_type=staff_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        staff = query.all()
+        return format_response([{
+            'id': s.id,
+            'user_id': s.user_id,
+            'staff_type': s.staff_type,
+            'specialization': s.specialization,
+            'license_number': s.license_number,
+            'license_expiry': s.license_expiry.isoformat(),
+            'status': s.status
+        } for s in staff])
+    except Exception as e:
+        return handle_exception(e)
 
 @health_bp.route('/staff', methods=['POST'])
 @jwt_required()
@@ -43,17 +59,44 @@ def create_health_staff():
 # Appointment Routes
 @health_bp.route('/appointments', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'health_staff'])
 def get_appointments():
-    appointments = Appointment.query.all()
-    return jsonify([{
-        'id': a.id,
-        'patient_id': a.patient_id,
-        'staff_id': a.staff_id,
-        'appointment_type': a.appointment_type,
-        'scheduled_date': a.scheduled_date.isoformat(),
-        'status': a.status,
-        'notes': a.notes
-    } for a in appointments]), 200
+    """Get all appointments with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        staff_id = request.args.get('staff_id')
+        appointment_type = request.args.get('appointment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Appointment.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if staff_id:
+            query = query.filter_by(staff_id=staff_id)
+        if appointment_type:
+            query = query.filter_by(appointment_type=appointment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Appointment.scheduled_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Appointment.scheduled_date <= datetime.fromisoformat(end_date))
+        
+        appointments = query.all()
+        return format_response([{
+            'id': a.id,
+            'patient_id': a.patient_id,
+            'staff_id': a.staff_id,
+            'appointment_type': a.appointment_type,
+            'scheduled_date': a.scheduled_date.isoformat(),
+            'status': a.status,
+            'notes': a.notes
+        } for a in appointments])
+    except Exception as e:
+        return handle_exception(e)
 
 @health_bp.route('/appointments', methods=['POST'])
 @jwt_required()
@@ -74,18 +117,42 @@ def create_appointment():
 # Medical Record Routes
 @health_bp.route('/medical-records', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'health_staff'])
 def get_medical_records():
-    records = MedicalRecord.query.all()
-    return jsonify([{
-        'id': r.id,
-        'patient_id': r.patient_id,
-        'appointment_id': r.appointment_id,
-        'diagnosis': r.diagnosis,
-        'treatment': r.treatment,
-        'notes': r.notes,
-        'follow_up_date': r.follow_up_date.isoformat() if r.follow_up_date else None,
-        'status': r.status
-    } for r in records]), 200
+    """Get all medical records with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        record_type = request.args.get('record_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = MedicalRecord.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if record_type:
+            query = query.filter_by(record_type=record_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(MedicalRecord.follow_up_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(MedicalRecord.follow_up_date <= datetime.fromisoformat(end_date))
+        
+        records = query.all()
+        return format_response([{
+            'id': r.id,
+            'patient_id': r.patient_id,
+            'appointment_id': r.appointment_id,
+            'diagnosis': r.diagnosis,
+            'treatment': r.treatment,
+            'notes': r.notes,
+            'follow_up_date': r.follow_up_date.isoformat() if r.follow_up_date else None,
+            'status': r.status
+        } for r in records])
+    except Exception as e:
+        return handle_exception(e)
 
 @health_bp.route('/medical-records', methods=['POST'])
 @jwt_required()
@@ -108,19 +175,43 @@ def create_medical_record():
 # Prescription Routes
 @health_bp.route('/prescriptions', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'health_staff'])
 def get_prescriptions():
-    prescriptions = Prescription.query.all()
-    return jsonify([{
-        'id': p.id,
-        'medical_record_id': p.medical_record_id,
-        'staff_id': p.staff_id,
-        'medication': p.medication,
-        'dosage': p.dosage,
-        'frequency': p.frequency,
-        'duration': p.duration,
-        'instructions': p.instructions,
-        'status': p.status
-    } for p in prescriptions]), 200
+    """Get all prescriptions with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        staff_id = request.args.get('staff_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Prescription.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if staff_id:
+            query = query.filter_by(staff_id=staff_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Prescription.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Prescription.date <= datetime.fromisoformat(end_date))
+        
+        prescriptions = query.all()
+        return format_response([{
+            'id': p.id,
+            'medical_record_id': p.medical_record_id,
+            'staff_id': p.staff_id,
+            'medication': p.medication,
+            'dosage': p.dosage,
+            'frequency': p.frequency,
+            'duration': p.duration,
+            'instructions': p.instructions,
+            'status': p.status
+        } for p in prescriptions])
+    except Exception as e:
+        return handle_exception(e)
 
 @health_bp.route('/prescriptions', methods=['POST'])
 @jwt_required()
@@ -237,4 +328,220 @@ def create_health_report():
     )
     db.session.add(report)
     db.session.commit()
-    return jsonify({'message': 'Health report created successfully', 'id': report.id}), 201 
+    return jsonify({'message': 'Health report created successfully', 'id': report.id}), 201
+
+@health_bp.route('/patients', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_patients():
+    """Get all patients with optional filters"""
+    try:
+        patient_type = request.args.get('patient_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Patient.query
+        
+        if patient_type:
+            query = query.filter_by(patient_type=patient_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Patient.registration_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Patient.registration_date <= datetime.fromisoformat(end_date))
+        
+        patients = query.all()
+        return format_response([patient.to_dict() for patient in patients])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/immunizations', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_immunizations():
+    """Get all immunizations with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        vaccine_type = request.args.get('vaccine_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Immunization.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if vaccine_type:
+            query = query.filter_by(vaccine_type=vaccine_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Immunization.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Immunization.date <= datetime.fromisoformat(end_date))
+        
+        immunizations = query.all()
+        return format_response([immunization.to_dict() for immunization in immunizations])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/allergies', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_allergies():
+    """Get all allergies with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        allergy_type = request.args.get('allergy_type')
+        severity = request.args.get('severity')
+        
+        query = Allergy.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if allergy_type:
+            query = query.filter_by(allergy_type=allergy_type)
+        if severity:
+            query = query.filter_by(severity=severity)
+        
+        allergies = query.all()
+        return format_response([allergy.to_dict() for allergy in allergies])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/test-results', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_test_results():
+    """Get all test results with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        test_type = request.args.get('test_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = TestResult.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if test_type:
+            query = query.filter_by(test_type=test_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(TestResult.date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(TestResult.date <= datetime.fromisoformat(end_date))
+        
+        results = query.all()
+        return format_response([result.to_dict() for result in results])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/treatments', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_treatments():
+    """Get all treatments with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        treatment_type = request.args.get('treatment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Treatment.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if treatment_type:
+            query = query.filter_by(treatment_type=treatment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Treatment.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Treatment.end_date <= datetime.fromisoformat(end_date))
+        
+        treatments = query.all()
+        return format_response([treatment.to_dict() for treatment in treatments])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/facilities', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_facilities():
+    """Get all health facilities with optional filters"""
+    try:
+        facility_type = request.args.get('facility_type')
+        status = request.args.get('status')
+        
+        query = Facility.query
+        
+        if facility_type:
+            query = query.filter_by(facility_type=facility_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        facilities = query.all()
+        return format_response([facility.to_dict() for facility in facilities])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/insurance', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_insurance():
+    """Get all insurance records with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        insurance_type = request.args.get('insurance_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Insurance.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if insurance_type:
+            query = query.filter_by(insurance_type=insurance_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Insurance.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Insurance.end_date <= datetime.fromisoformat(end_date))
+        
+        insurance_records = query.all()
+        return format_response([record.to_dict() for record in insurance_records])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_bp.route('/emergency-contacts', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def get_emergency_contacts():
+    """Get all emergency contacts with optional filters"""
+    try:
+        patient_id = request.args.get('patient_id')
+        relationship = request.args.get('relationship')
+        status = request.args.get('status')
+        
+        query = EmergencyContact.query
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        if relationship:
+            query = query.filter_by(relationship=relationship)
+        if status:
+            query = query.filter_by(status=status)
+        
+        contacts = query.all()
+        return format_response([contact.to_dict() for contact in contacts])
+    except Exception as e:
+        return handle_exception(e) 
