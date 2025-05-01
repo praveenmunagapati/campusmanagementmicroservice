@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Employee, Department, Position, Payroll, Leave, Attendance, Training, PerformanceReview, Recruitment
-from . import db
+from .models import Employee, LeaveRequest, PerformanceReview, TrainingProgram
+from .. import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
@@ -11,281 +11,196 @@ hr_bp = Blueprint('hr', __name__)
 @hr_bp.route('/employees', methods=['GET'])
 @jwt_required()
 def get_employees():
+    """Get all employees"""
     employees = Employee.query.all()
-    return jsonify([{
-        'id': e.id,
-        'user_id': e.user_id,
-        'department_id': e.department_id,
-        'position_id': e.position_id,
-        'hire_date': e.hire_date.isoformat(),
-        'employment_type': e.employment_type,
-        'status': e.status
-    } for e in employees])
+    return jsonify([employee.to_dict() for employee in employees])
+
+@hr_bp.route('/employees/<int:id>', methods=['GET'])
+@jwt_required()
+def get_employee_by_id(id):
+    """Get specific employee by ID"""
+    employee = Employee.query.get_or_404(id)
+    return jsonify(employee.to_dict())
 
 @hr_bp.route('/employees', methods=['POST'])
 @jwt_required()
 @role_required(['admin', 'hr'])
 def create_employee():
+    """Create new employee"""
     data = request.get_json()
-    employee = Employee(
-        user_id=data['user_id'],
-        department_id=data['department_id'],
-        position_id=data['position_id'],
-        hire_date=datetime.fromisoformat(data['hire_date']),
-        employment_type=data['employment_type'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(employee)
+    new_employee = Employee(**data)
+    db.session.add(new_employee)
     db.session.commit()
-    return jsonify({'message': 'Employee created successfully', 'id': employee.id}), 201
+    return jsonify(new_employee.to_dict()), 201
 
-# Department Routes
-@hr_bp.route('/departments', methods=['GET'])
-@jwt_required()
-def get_departments():
-    departments = Department.query.all()
-    return jsonify([{
-        'id': d.id,
-        'name': d.name,
-        'description': d.description,
-        'manager_id': d.manager_id,
-        'status': d.status
-    } for d in departments])
-
-@hr_bp.route('/departments', methods=['POST'])
+@hr_bp.route('/employees/<int:id>', methods=['PUT'])
 @jwt_required()
 @role_required(['admin', 'hr'])
-def create_department():
+def update_employee(id):
+    """Update existing employee"""
+    employee = Employee.query.get_or_404(id)
     data = request.get_json()
-    department = Department(
-        name=data['name'],
-        description=data.get('description'),
-        manager_id=data.get('manager_id'),
-        status=data.get('status', 'active')
-    )
-    db.session.add(department)
+    for key, value in data.items():
+        setattr(employee, key, value)
     db.session.commit()
-    return jsonify({'message': 'Department created successfully', 'id': department.id}), 201
+    return jsonify(employee.to_dict())
 
-# Position Routes
-@hr_bp.route('/positions', methods=['GET'])
-@jwt_required()
-def get_positions():
-    positions = Position.query.all()
-    return jsonify([{
-        'id': p.id,
-        'title': p.title,
-        'department_id': p.department_id,
-        'description': p.description,
-        'salary_range': p.salary_range,
-        'status': p.status
-    } for p in positions])
-
-@hr_bp.route('/positions', methods=['POST'])
+@hr_bp.route('/employees/<int:id>', methods=['DELETE'])
 @jwt_required()
 @role_required(['admin', 'hr'])
-def create_position():
-    data = request.get_json()
-    position = Position(
-        title=data['title'],
-        department_id=data['department_id'],
-        description=data.get('description'),
-        salary_range=data['salary_range'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(position)
+def delete_employee(id):
+    """Delete employee"""
+    employee = Employee.query.get_or_404(id)
+    db.session.delete(employee)
     db.session.commit()
-    return jsonify({'message': 'Position created successfully', 'id': position.id}), 201
+    return '', 204
 
-# Payroll Routes
-@hr_bp.route('/payroll', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'hr', 'finance'])
-def get_payroll():
-    payroll = Payroll.query.all()
-    return jsonify([{
-        'id': p.id,
-        'employee_id': p.employee_id,
-        'month': p.month,
-        'year': p.year,
-        'basic_salary': p.basic_salary,
-        'allowances': p.allowances,
-        'deductions': p.deductions,
-        'net_salary': p.net_salary,
-        'currency': p.currency,
-        'status': p.status
-    } for p in payroll])
-
-@hr_bp.route('/payroll', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'hr', 'finance'])
-def create_payroll():
-    data = request.get_json()
-    payroll = Payroll(
-        employee_id=data['employee_id'],
-        month=data['month'],
-        year=data['year'],
-        basic_salary=data['basic_salary'],
-        allowances=data.get('allowances', 0),
-        deductions=data.get('deductions', 0),
-        net_salary=data['net_salary'],
-        currency=data['currency'],
-        status=data.get('status', 'pending')
-    )
-    db.session.add(payroll)
-    db.session.commit()
-    return jsonify({'message': 'Payroll record created successfully', 'id': payroll.id}), 201
-
-# Leave Routes
+# Leave Request Routes
 @hr_bp.route('/leaves', methods=['GET'])
 @jwt_required()
-def get_leaves():
-    leaves = Leave.query.all()
-    return jsonify([{
-        'id': l.id,
-        'employee_id': l.employee_id,
-        'leave_type': l.leave_type,
-        'start_date': l.start_date.isoformat(),
-        'end_date': l.end_date.isoformat(),
-        'reason': l.reason,
-        'status': l.status
-    } for l in leaves])
+def get_leave_requests():
+    """Get all leave requests"""
+    leaves = LeaveRequest.query.all()
+    return jsonify([leave.to_dict() for leave in leaves])
 
 @hr_bp.route('/leaves', methods=['POST'])
 @jwt_required()
-def create_leave():
+def create_leave_request():
+    """Create new leave request"""
     data = request.get_json()
-    leave = Leave(
-        employee_id=data['employee_id'],
-        leave_type=data['leave_type'],
-        start_date=datetime.fromisoformat(data['start_date']),
-        end_date=datetime.fromisoformat(data['end_date']),
-        reason=data['reason'],
-        status=data.get('status', 'pending')
-    )
-    db.session.add(leave)
+    new_leave = LeaveRequest(**data)
+    db.session.add(new_leave)
     db.session.commit()
-    return jsonify({'message': 'Leave request created successfully', 'id': leave.id}), 201
+    return jsonify(new_leave.to_dict()), 201
 
-# Attendance Routes
-@hr_bp.route('/attendance', methods=['GET'])
+@hr_bp.route('/employees/<int:employee_id>/leaves', methods=['GET'])
 @jwt_required()
-def get_attendance():
-    attendance = Attendance.query.all()
-    return jsonify([{
-        'id': a.id,
-        'employee_id': a.employee_id,
-        'date': a.date.isoformat(),
-        'check_in': a.check_in.isoformat() if a.check_in else None,
-        'check_out': a.check_out.isoformat() if a.check_out else None,
-        'status': a.status
-    } for a in attendance])
+def get_employee_leave_requests(employee_id):
+    """Get leave requests for specific employee"""
+    leaves = LeaveRequest.query.filter_by(employee_id=employee_id).all()
+    return jsonify([leave.to_dict() for leave in leaves])
 
-@hr_bp.route('/attendance', methods=['POST'])
-@jwt_required()
-def create_attendance():
-    data = request.get_json()
-    attendance = Attendance(
-        employee_id=data['employee_id'],
-        date=datetime.fromisoformat(data['date']),
-        check_in=datetime.fromisoformat(data['check_in']) if data.get('check_in') else None,
-        check_out=datetime.fromisoformat(data['check_out']) if data.get('check_out') else None,
-        status=data.get('status', 'present')
-    )
-    db.session.add(attendance)
-    db.session.commit()
-    return jsonify({'message': 'Attendance record created successfully', 'id': attendance.id}), 201
-
-# Training Routes
-@hr_bp.route('/trainings', methods=['GET'])
-@jwt_required()
-def get_trainings():
-    trainings = Training.query.all()
-    return jsonify([{
-        'id': t.id,
-        'title': t.title,
-        'description': t.description,
-        'start_date': t.start_date.isoformat(),
-        'end_date': t.end_date.isoformat(),
-        'trainer': t.trainer,
-        'status': t.status
-    } for t in trainings])
-
-@hr_bp.route('/trainings', methods=['POST'])
+@hr_bp.route('/leaves/<int:id>', methods=['PUT'])
 @jwt_required()
 @role_required(['admin', 'hr'])
-def create_training():
+def update_leave_request(id):
+    """Update existing leave request"""
+    leave = LeaveRequest.query.get_or_404(id)
     data = request.get_json()
-    training = Training(
-        title=data['title'],
-        description=data['description'],
-        start_date=datetime.fromisoformat(data['start_date']),
-        end_date=datetime.fromisoformat(data['end_date']),
-        trainer=data['trainer'],
-        status=data.get('status', 'scheduled')
-    )
-    db.session.add(training)
+    for key, value in data.items():
+        setattr(leave, key, value)
     db.session.commit()
-    return jsonify({'message': 'Training created successfully', 'id': training.id}), 201
+    return jsonify(leave.to_dict())
+
+@hr_bp.route('/leaves/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'hr'])
+def delete_leave_request(id):
+    """Delete leave request"""
+    leave = LeaveRequest.query.get_or_404(id)
+    db.session.delete(leave)
+    db.session.commit()
+    return '', 204
 
 # Performance Review Routes
 @hr_bp.route('/performance-reviews', methods=['GET'])
 @jwt_required()
 def get_performance_reviews():
+    """Get all performance reviews"""
     reviews = PerformanceReview.query.all()
-    return jsonify([{
-        'id': r.id,
-        'employee_id': r.employee_id,
-        'reviewer_id': r.reviewer_id,
-        'review_date': r.review_date.isoformat(),
-        'rating': r.rating,
-        'comments': r.comments,
-        'status': r.status
-    } for r in reviews])
+    return jsonify([review.to_dict() for review in reviews])
 
 @hr_bp.route('/performance-reviews', methods=['POST'])
 @jwt_required()
 @role_required(['admin', 'hr'])
 def create_performance_review():
+    """Create new performance review"""
     data = request.get_json()
-    review = PerformanceReview(
-        employee_id=data['employee_id'],
-        reviewer_id=data['reviewer_id'],
-        review_date=datetime.fromisoformat(data['review_date']),
-        rating=data['rating'],
-        comments=data['comments'],
-        status=data.get('status', 'draft')
-    )
-    db.session.add(review)
+    new_review = PerformanceReview(**data)
+    db.session.add(new_review)
     db.session.commit()
-    return jsonify({'message': 'Performance review created successfully', 'id': review.id}), 201
+    return jsonify(new_review.to_dict()), 201
 
-# Recruitment Routes
-@hr_bp.route('/recruitment', methods=['GET'])
+@hr_bp.route('/employees/<int:employee_id>/performance-reviews', methods=['GET'])
 @jwt_required()
-def get_recruitment():
-    recruitment = Recruitment.query.all()
-    return jsonify([{
-        'id': r.id,
-        'position_id': r.position_id,
-        'job_title': r.job_title,
-        'description': r.description,
-        'requirements': r.requirements,
-        'status': r.status
-    } for r in recruitment])
+def get_employee_performance_reviews(employee_id):
+    """Get performance reviews for specific employee"""
+    reviews = PerformanceReview.query.filter_by(employee_id=employee_id).all()
+    return jsonify([review.to_dict() for review in reviews])
 
-@hr_bp.route('/recruitment', methods=['POST'])
+@hr_bp.route('/performance-reviews/<int:id>', methods=['PUT'])
 @jwt_required()
 @role_required(['admin', 'hr'])
-def create_recruitment():
+def update_performance_review(id):
+    """Update existing performance review"""
+    review = PerformanceReview.query.get_or_404(id)
     data = request.get_json()
-    recruitment = Recruitment(
-        position_id=data['position_id'],
-        job_title=data['job_title'],
-        description=data['description'],
-        requirements=data['requirements'],
-        status=data.get('status', 'open')
-    )
-    db.session.add(recruitment)
+    for key, value in data.items():
+        setattr(review, key, value)
     db.session.commit()
-    return jsonify({'message': 'Recruitment record created successfully', 'id': recruitment.id}), 201 
+    return jsonify(review.to_dict())
+
+@hr_bp.route('/performance-reviews/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'hr'])
+def delete_performance_review(id):
+    """Delete performance review"""
+    review = PerformanceReview.query.get_or_404(id)
+    db.session.delete(review)
+    db.session.commit()
+    return '', 204
+
+@hr_bp.route('/reviewers/<int:reviewer_id>/performance-reviews', methods=['GET'])
+@jwt_required()
+def get_reviewer_performance_reviews(reviewer_id):
+    """Get performance reviews given by specific reviewer"""
+    reviews = PerformanceReview.query.filter_by(reviewer_id=reviewer_id).all()
+    return jsonify([review.to_dict() for review in reviews])
+
+# Training Program Routes
+@hr_bp.route('/training-programs', methods=['GET'])
+@jwt_required()
+def get_training_programs():
+    """Get all training programs"""
+    programs = TrainingProgram.query.all()
+    return jsonify([program.to_dict() for program in programs])
+
+@hr_bp.route('/training-programs', methods=['POST'])
+@jwt_required()
+@role_required(['admin', 'hr'])
+def create_training_program():
+    """Create new training program"""
+    data = request.get_json()
+    new_program = TrainingProgram(**data)
+    db.session.add(new_program)
+    db.session.commit()
+    return jsonify(new_program.to_dict()), 201
+
+@hr_bp.route('/training-programs/<int:id>', methods=['GET'])
+@jwt_required()
+def get_training_program_by_id(id):
+    """Get specific training program by ID"""
+    program = TrainingProgram.query.get_or_404(id)
+    return jsonify(program.to_dict())
+
+@hr_bp.route('/training-programs/<int:id>', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'hr'])
+def update_training_program(id):
+    """Update existing training program"""
+    program = TrainingProgram.query.get_or_404(id)
+    data = request.get_json()
+    for key, value in data.items():
+        setattr(program, key, value)
+    db.session.commit()
+    return jsonify(program.to_dict())
+
+@hr_bp.route('/training-programs/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'hr'])
+def delete_training_program(id):
+    """Delete training program"""
+    program = TrainingProgram.query.get_or_404(id)
+    db.session.delete(program)
+    db.session.commit()
+    return '', 204 

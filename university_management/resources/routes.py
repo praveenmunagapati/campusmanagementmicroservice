@@ -1,192 +1,192 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Facility, Equipment, ResourceAllocation, MaintenanceRequest, ResourceCategory, ResourceBooking
-from . import db
+from .models import Resource, ResourceBooking, ResourceCategory, ResourceMaintenance
+from .. import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 resources_bp = Blueprint('resources', __name__)
 
-# Facility Routes
-@resources_bp.route('/facilities', methods=['GET'])
+# Resource Routes
+@resources_bp.route('/resources', methods=['GET'])
 @jwt_required()
-def get_facilities():
-    facilities = Facility.query.all()
-    return jsonify([{
-        'id': f.id,
-        'name': f.name,
-        'description': f.description,
-        'location': f.location,
-        'capacity': f.capacity,
-        'facility_type': f.facility_type,
-        'status': f.status
-    } for f in facilities])
+def get_resources():
+    """Get all resources"""
+    resources = Resource.query.all()
+    return jsonify([resource.to_dict() for resource in resources])
 
-@resources_bp.route('/facilities', methods=['POST'])
+@resources_bp.route('/resources/<int:id>', methods=['GET'])
+@jwt_required()
+def get_resource_by_id(id):
+    """Get specific resource by ID"""
+    resource = Resource.query.get_or_404(id)
+    return jsonify(resource.to_dict())
+
+@resources_bp.route('/resources', methods=['POST'])
 @jwt_required()
 @role_required(['admin', 'facilities'])
-def create_facility():
+def create_resource():
+    """Create new resource"""
     data = request.get_json()
-    facility = Facility(
-        name=data['name'],
-        description=data.get('description'),
-        location=data['location'],
-        capacity=data['capacity'],
-        facility_type=data['facility_type'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(facility)
+    new_resource = Resource(**data)
+    db.session.add(new_resource)
     db.session.commit()
-    return jsonify({'message': 'Facility created successfully', 'id': facility.id}), 201
+    return jsonify(new_resource.to_dict()), 201
 
-# Equipment Routes
-@resources_bp.route('/equipment', methods=['GET'])
-@jwt_required()
-def get_equipment():
-    equipment = Equipment.query.all()
-    return jsonify([{
-        'id': e.id,
-        'name': e.name,
-        'description': e.description,
-        'category_id': e.category_id,
-        'location': e.location,
-        'status': e.status
-    } for e in equipment])
-
-@resources_bp.route('/equipment', methods=['POST'])
+@resources_bp.route('/resources/<int:id>', methods=['PUT'])
 @jwt_required()
 @role_required(['admin', 'facilities'])
-def create_equipment():
+def update_resource(id):
+    """Update existing resource"""
+    resource = Resource.query.get_or_404(id)
     data = request.get_json()
-    equipment = Equipment(
-        name=data['name'],
-        description=data.get('description'),
-        category_id=data['category_id'],
-        location=data['location'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(equipment)
+    for key, value in data.items():
+        setattr(resource, key, value)
     db.session.commit()
-    return jsonify({'message': 'Equipment created successfully', 'id': equipment.id}), 201
+    return jsonify(resource.to_dict())
 
-# Resource Allocation Routes
-@resources_bp.route('/allocations', methods=['GET'])
-@jwt_required()
-def get_allocations():
-    allocations = ResourceAllocation.query.all()
-    return jsonify([{
-        'id': a.id,
-        'resource_id': a.resource_id,
-        'resource_type': a.resource_type,
-        'allocated_to': a.allocated_to,
-        'start_date': a.start_date.isoformat(),
-        'end_date': a.end_date.isoformat(),
-        'status': a.status
-    } for a in allocations])
-
-@resources_bp.route('/allocations', methods=['POST'])
+@resources_bp.route('/resources/<int:id>', methods=['DELETE'])
 @jwt_required()
 @role_required(['admin', 'facilities'])
-def create_allocation():
-    data = request.get_json()
-    allocation = ResourceAllocation(
-        resource_id=data['resource_id'],
-        resource_type=data['resource_type'],
-        allocated_to=data['allocated_to'],
-        start_date=datetime.fromisoformat(data['start_date']),
-        end_date=datetime.fromisoformat(data['end_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(allocation)
+def delete_resource(id):
+    """Delete resource"""
+    resource = Resource.query.get_or_404(id)
+    db.session.delete(resource)
     db.session.commit()
-    return jsonify({'message': 'Resource allocation created successfully', 'id': allocation.id}), 201
-
-# Maintenance Request Routes
-@resources_bp.route('/maintenance-requests', methods=['GET'])
-@jwt_required()
-def get_maintenance_requests():
-    requests = MaintenanceRequest.query.all()
-    return jsonify([{
-        'id': r.id,
-        'resource_id': r.resource_id,
-        'resource_type': r.resource_type,
-        'requested_by': r.requested_by,
-        'description': r.description,
-        'priority': r.priority,
-        'status': r.status
-    } for r in requests])
-
-@resources_bp.route('/maintenance-requests', methods=['POST'])
-@jwt_required()
-def create_maintenance_request():
-    data = request.get_json()
-    request = MaintenanceRequest(
-        resource_id=data['resource_id'],
-        resource_type=data['resource_type'],
-        requested_by=data['requested_by'],
-        description=data['description'],
-        priority=data['priority'],
-        status=data.get('status', 'pending')
-    )
-    db.session.add(request)
-    db.session.commit()
-    return jsonify({'message': 'Maintenance request created successfully', 'id': request.id}), 201
-
-# Resource Category Routes
-@resources_bp.route('/categories', methods=['GET'])
-@jwt_required()
-def get_categories():
-    categories = ResourceCategory.query.all()
-    return jsonify([{
-        'id': c.id,
-        'name': c.name,
-        'description': c.description,
-        'status': c.status
-    } for c in categories])
-
-@resources_bp.route('/categories', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_category():
-    data = request.get_json()
-    category = ResourceCategory(
-        name=data['name'],
-        description=data.get('description'),
-        status=data.get('status', 'active')
-    )
-    db.session.add(category)
-    db.session.commit()
-    return jsonify({'message': 'Resource category created successfully', 'id': category.id}), 201
+    return '', 204
 
 # Resource Booking Routes
-@resources_bp.route('/bookings', methods=['GET'])
+@resources_bp.route('/resources/bookings', methods=['GET'])
 @jwt_required()
-def get_bookings():
+def get_resource_bookings():
+    """Get all resource bookings"""
     bookings = ResourceBooking.query.all()
-    return jsonify([{
-        'id': b.id,
-        'resource_id': b.resource_id,
-        'resource_type': b.resource_type,
-        'booked_by': b.booked_by,
-        'start_time': b.start_time.isoformat(),
-        'end_time': b.end_time.isoformat(),
-        'purpose': b.purpose,
-        'status': b.status
-    } for b in bookings])
+    return jsonify([booking.to_dict() for booking in bookings])
 
-@resources_bp.route('/bookings', methods=['POST'])
+@resources_bp.route('/resources/bookings', methods=['POST'])
 @jwt_required()
-def create_booking():
+def create_resource_booking():
+    """Create new resource booking"""
     data = request.get_json()
-    booking = ResourceBooking(
-        resource_id=data['resource_id'],
-        resource_type=data['resource_type'],
-        booked_by=data['booked_by'],
-        start_time=datetime.fromisoformat(data['start_time']),
-        end_time=datetime.fromisoformat(data['end_time']),
-        purpose=data['purpose'],
-        status=data.get('status', 'pending')
-    )
-    db.session.add(booking)
+    new_booking = ResourceBooking(**data)
+    db.session.add(new_booking)
     db.session.commit()
-    return jsonify({'message': 'Resource booking created successfully', 'id': booking.id}), 201 
+    return jsonify(new_booking.to_dict()), 201
+
+@resources_bp.route('/resources/<int:resource_id>/bookings', methods=['GET'])
+@jwt_required()
+def get_resource_bookings_by_resource(resource_id):
+    """Get bookings for specific resource"""
+    bookings = ResourceBooking.query.filter_by(resource_id=resource_id).all()
+    return jsonify([booking.to_dict() for booking in bookings])
+
+@resources_bp.route('/resources/bookings/<int:id>', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def update_resource_booking(id):
+    """Update existing resource booking"""
+    booking = ResourceBooking.query.get_or_404(id)
+    data = request.get_json()
+    for key, value in data.items():
+        setattr(booking, key, value)
+    db.session.commit()
+    return jsonify(booking.to_dict())
+
+@resources_bp.route('/resources/bookings/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def delete_resource_booking(id):
+    """Delete resource booking"""
+    booking = ResourceBooking.query.get_or_404(id)
+    db.session.delete(booking)
+    db.session.commit()
+    return '', 204
+
+# Resource Category Routes
+@resources_bp.route('/resources/categories', methods=['GET'])
+@jwt_required()
+def get_resource_categories():
+    """Get all resource categories"""
+    categories = ResourceCategory.query.all()
+    return jsonify([category.to_dict() for category in categories])
+
+@resources_bp.route('/resources/categories', methods=['POST'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def create_resource_category():
+    """Create new resource category"""
+    data = request.get_json()
+    new_category = ResourceCategory(**data)
+    db.session.add(new_category)
+    db.session.commit()
+    return jsonify(new_category.to_dict()), 201
+
+@resources_bp.route('/resources/categories/<int:id>', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def update_resource_category(id):
+    """Update existing resource category"""
+    category = ResourceCategory.query.get_or_404(id)
+    data = request.get_json()
+    for key, value in data.items():
+        setattr(category, key, value)
+    db.session.commit()
+    return jsonify(category.to_dict())
+
+@resources_bp.route('/resources/categories/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def delete_resource_category(id):
+    """Delete resource category"""
+    category = ResourceCategory.query.get_or_404(id)
+    db.session.delete(category)
+    db.session.commit()
+    return '', 204
+
+# Resource Maintenance Routes
+@resources_bp.route('/resources/maintenance', methods=['GET'])
+@jwt_required()
+def get_resource_maintenance():
+    """Get all resource maintenance records"""
+    maintenance = ResourceMaintenance.query.all()
+    return jsonify([record.to_dict() for record in maintenance])
+
+@resources_bp.route('/resources/maintenance', methods=['POST'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def create_resource_maintenance():
+    """Create new resource maintenance record"""
+    data = request.get_json()
+    new_maintenance = ResourceMaintenance(**data)
+    db.session.add(new_maintenance)
+    db.session.commit()
+    return jsonify(new_maintenance.to_dict()), 201
+
+@resources_bp.route('/resources/maintenance/<int:id>', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def update_resource_maintenance(id):
+    """Update existing resource maintenance record"""
+    maintenance = ResourceMaintenance.query.get_or_404(id)
+    data = request.get_json()
+    for key, value in data.items():
+        setattr(maintenance, key, value)
+    db.session.commit()
+    return jsonify(maintenance.to_dict())
+
+@resources_bp.route('/resources/maintenance/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required(['admin', 'facilities'])
+def delete_resource_maintenance(id):
+    """Delete resource maintenance record"""
+    maintenance = ResourceMaintenance.query.get_or_404(id)
+    db.session.delete(maintenance)
+    db.session.commit()
+    return '', 204
+
+@resources_bp.route('/resources/available', methods=['GET'])
+@jwt_required()
+def get_available_resources():
+    """Get all available resources"""
+    resources = Resource.query.filter_by(status='available').all()
+    return jsonify([resource.to_dict() for resource in resources]) 
