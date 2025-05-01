@@ -77,20 +77,102 @@ class Visit(db.Model):
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('visits', lazy=True))
     staff = db.relationship('User', foreign_keys=[staff_id], backref=db.backref('staff_visits', lazy=True))
 
+class HealthRecord(db.Model):
+    __tablename__ = 'health_records'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    record_type = db.Column(db.String(50), nullable=False)  # medical, dental, vision, etc.
+    date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.Text)
+    diagnosis = db.Column(db.String(200))
+    treatment = db.Column(db.Text)
+    medication = db.Column(db.String(200))
+    follow_up_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='active')  # active, resolved, follow_up_needed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    student = db.relationship('Student', backref=db.backref('health_records', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'record_type': self.record_type,
+            'date': self.date.isoformat(),
+            'description': self.description,
+            'diagnosis': self.diagnosis,
+            'treatment': self.treatment,
+            'medication': self.medication,
+            'follow_up_date': self.follow_up_date.isoformat() if self.follow_up_date else None,
+            'status': self.status,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
 class Immunization(db.Model):
     __tablename__ = 'immunizations'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     vaccine_name = db.Column(db.String(100), nullable=False)
     date_administered = db.Column(db.Date, nullable=False)
-    administered_by = db.Column(db.String(100))
-    next_dose_date = db.Column(db.Date)
+    next_due_date = db.Column(db.Date)
+    provider = db.Column(db.String(100))
     batch_number = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='completed')  # completed, pending, overdue
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = db.relationship('User', backref=db.backref('immunizations', lazy=True))
+    student = db.relationship('Student', backref=db.backref('immunizations', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'vaccine_name': self.vaccine_name,
+            'date_administered': self.date_administered.isoformat(),
+            'next_due_date': self.next_due_date.isoformat() if self.next_due_date else None,
+            'provider': self.provider,
+            'batch_number': self.batch_number,
+            'status': self.status,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+class HealthAppointment(db.Model):
+    __tablename__ = 'health_appointments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    staff_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    appointment_type = db.Column(db.String(50), nullable=False)  # checkup, consultation, emergency, etc.
+    appointment_date = db.Column(db.DateTime, nullable=False)
+    duration = db.Column(db.Integer)  # in minutes
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), default='scheduled')  # scheduled, completed, cancelled
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    student = db.relationship('Student', backref=db.backref('health_appointments', lazy=True))
+    staff = db.relationship('User', backref=db.backref('health_appointments', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'staff_id': self.staff_id,
+            'appointment_type': self.appointment_type,
+            'appointment_date': self.appointment_date.isoformat(),
+            'duration': self.duration,
+            'reason': self.reason,
+            'status': self.status,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
 
 class HealthAlert(db.Model):
     __tablename__ = 'health_alerts'

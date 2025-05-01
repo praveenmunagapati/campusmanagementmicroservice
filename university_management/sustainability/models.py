@@ -83,18 +83,31 @@ class SustainabilityProject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    project_type = db.Column(db.String(50), nullable=False)  # energy, waste, water, etc.
-    start_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date)
+    status = db.Column(db.String(50), default='active')
+    category = db.Column(db.String(100), nullable=False)  # energy, waste, water, etc.
+    impact_metrics = db.Column(db.Text)  # JSON string of metrics
     budget = db.Column(db.Float)
-    currency = db.Column(db.String(3), default='USD')
-    status = db.Column(db.String(20), default='planned')  # planned, in_progress, completed, cancelled
-    impact_metrics = db.Column(db.Text)  # JSON string of impact metrics
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    creator = db.relationship('User', backref=db.backref('created_projects', lazy=True))
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'start_date': self.start_date.isoformat(),
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'status': self.status,
+            'category': self.category,
+            'impact_metrics': self.impact_metrics,
+            'budget': self.budget,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
 
 class ProjectTeam(db.Model):
     __tablename__ = 'project_teams'
@@ -118,17 +131,31 @@ class SustainabilityEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    event_type = db.Column(db.String(50), nullable=False)  # workshop, campaign, awareness
-    start_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime)
+    event_date = db.Column(db.DateTime, nullable=False)
     location = db.Column(db.String(200))
-    capacity = db.Column(db.Integer)
-    status = db.Column(db.String(20), default='planned')  # planned, ongoing, completed, cancelled
+    event_type = db.Column(db.String(50), nullable=False)  # workshop, campaign, cleanup, etc.
+    target_audience = db.Column(db.String(100))
+    registration_link = db.Column(db.String(200))
+    status = db.Column(db.String(50), default='upcoming')
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    creator = db.relationship('User', backref=db.backref('created_events', lazy=True))
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'event_date': self.event_date.isoformat(),
+            'location': self.location,
+            'event_type': self.event_type,
+            'target_audience': self.target_audience,
+            'registration_link': self.registration_link,
+            'status': self.status,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
 
 class EventRegistration(db.Model):
     __tablename__ = 'event_registrations'
@@ -143,4 +170,62 @@ class EventRegistration(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     event = db.relationship('SustainabilityEvent', backref=db.backref('registrations', lazy=True))
-    user = db.relationship('User', backref=db.backref('event_registrations', lazy=True)) 
+    user = db.relationship('User', backref=db.backref('event_registrations', lazy=True))
+
+class EnergyConsumption(db.Model):
+    __tablename__ = 'energy_consumption'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    building_id = db.Column(db.Integer, db.ForeignKey('buildings.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    electricity_usage = db.Column(db.Float)  # kWh
+    gas_usage = db.Column(db.Float)  # cubic meters
+    water_usage = db.Column(db.Float)  # cubic meters
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'building_id': self.building_id,
+            'date': self.date.isoformat(),
+            'electricity_usage': self.electricity_usage,
+            'gas_usage': self.gas_usage,
+            'water_usage': self.water_usage,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+class GreenBuilding(db.Model):
+    __tablename__ = 'green_buildings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    building_id = db.Column(db.Integer, db.ForeignKey('buildings.id'), nullable=False)
+    certification = db.Column(db.String(100))  # LEED, BREEAM, etc.
+    certification_level = db.Column(db.String(50))
+    certification_date = db.Column(db.Date)
+    renewable_energy_usage = db.Column(db.Float)  # percentage
+    water_efficiency_score = db.Column(db.Float)  # percentage
+    energy_efficiency_score = db.Column(db.Float)  # percentage
+    waste_management_score = db.Column(db.Float)  # percentage
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'building_id': self.building_id,
+            'certification': self.certification,
+            'certification_level': self.certification_level,
+            'certification_date': self.certification_date.isoformat() if self.certification_date else None,
+            'renewable_energy_usage': self.renewable_energy_usage,
+            'water_efficiency_score': self.water_efficiency_score,
+            'energy_efficiency_score': self.energy_efficiency_score,
+            'waste_management_score': self.waste_management_score,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        } 

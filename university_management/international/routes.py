@@ -2,11 +2,13 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     ExchangeProgram, PartnerInstitution, ExchangeApplication, VisaApplication,
-    InternationalStudent, LanguageProficiency, CulturalEvent, EventRegistration
+    InternationalStudent, LanguageProficiency, CulturalEvent, EventRegistration,
+    InternationalEvent
 )
 from .. import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
+import json
 
 international_bp = Blueprint('international', __name__)
 
@@ -16,14 +18,20 @@ international_bp = Blueprint('international', __name__)
 def get_exchange_programs():
     """Get all exchange programs"""
     programs = ExchangeProgram.query.all()
-    return jsonify([program.to_dict() for program in programs])
+    return jsonify({
+        'status': 'success',
+        'data': [program.to_dict() for program in programs]
+    }), 200
 
 @international_bp.route('/exchange-programs/<int:id>', methods=['GET'])
 @jwt_required()
 def get_exchange_program_by_id(id):
     """Get specific exchange program by ID"""
     program = ExchangeProgram.query.get_or_404(id)
-    return jsonify(program.to_dict())
+    return jsonify({
+        'status': 'success',
+        'data': program.to_dict()
+    }), 200
 
 @international_bp.route('/exchange-programs', methods=['POST'])
 @jwt_required()
@@ -31,10 +39,24 @@ def get_exchange_program_by_id(id):
 def create_exchange_program():
     """Create new exchange program"""
     data = request.get_json()
-    new_program = ExchangeProgram(**data)
-    db.session.add(new_program)
+    
+    program = ExchangeProgram(
+        name=data['name'],
+        partner_institution=data['partner_institution'],
+        country=data['country'],
+        start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
+        end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date(),
+        capacity=data['capacity'],
+        requirements=data.get('requirements')
+    )
+    
+    db.session.add(program)
     db.session.commit()
-    return jsonify(new_program.to_dict()), 201
+    
+    return jsonify({
+        'status': 'success',
+        'data': program.to_dict()
+    }), 201
 
 @international_bp.route('/exchange-programs/<int:id>', methods=['PUT'])
 @jwt_required()
@@ -113,24 +135,42 @@ def delete_partner_institution(id):
 def get_exchange_applications():
     """Get all exchange applications"""
     applications = ExchangeApplication.query.all()
-    return jsonify([application.to_dict() for application in applications])
+    return jsonify({
+        'status': 'success',
+        'data': [app.to_dict() for app in applications]
+    }), 200
 
 @international_bp.route('/exchange-applications/<int:id>', methods=['GET'])
 @jwt_required()
 def get_exchange_application_by_id(id):
     """Get specific exchange application by ID"""
     application = ExchangeApplication.query.get_or_404(id)
-    return jsonify(application.to_dict())
+    return jsonify({
+        'status': 'success',
+        'data': application.to_dict()
+    }), 200
 
 @international_bp.route('/exchange-applications', methods=['POST'])
 @jwt_required()
 def create_exchange_application():
     """Create new exchange application"""
     data = request.get_json()
-    new_application = ExchangeApplication(**data)
-    db.session.add(new_application)
+    
+    application = ExchangeApplication(
+        student_id=data['student_id'],
+        program_id=data['program_id'],
+        application_date=datetime.strptime(data['application_date'], '%Y-%m-%d').date(),
+        documents=json.dumps(data.get('documents', [])),
+        notes=data.get('notes')
+    )
+    
+    db.session.add(application)
     db.session.commit()
-    return jsonify(new_application.to_dict()), 201
+    
+    return jsonify({
+        'status': 'success',
+        'data': application.to_dict()
+    }), 201
 
 @international_bp.route('/exchange-applications/<int:id>', methods=['PUT'])
 @jwt_required()
@@ -189,14 +229,20 @@ def update_visa_application(id):
 def get_international_students():
     """Get all international students"""
     students = InternationalStudent.query.all()
-    return jsonify([student.to_dict() for student in students])
+    return jsonify({
+        'status': 'success',
+        'data': [student.to_dict() for student in students]
+    }), 200
 
 @international_bp.route('/students/<int:id>', methods=['GET'])
 @jwt_required()
 def get_international_student_by_id(id):
     """Get specific international student by ID"""
     student = InternationalStudent.query.get_or_404(id)
-    return jsonify(student.to_dict())
+    return jsonify({
+        'status': 'success',
+        'data': student.to_dict()
+    }), 200
 
 @international_bp.route('/students', methods=['POST'])
 @jwt_required()
@@ -204,10 +250,24 @@ def get_international_student_by_id(id):
 def create_international_student():
     """Create new international student record"""
     data = request.get_json()
-    new_student = InternationalStudent(**data)
-    db.session.add(new_student)
+    
+    student = InternationalStudent(
+        student_id=data['student_id'],
+        passport_number=data['passport_number'],
+        visa_type=data['visa_type'],
+        visa_expiry_date=datetime.strptime(data['visa_expiry_date'], '%Y-%m-%d').date(),
+        country_of_origin=data['country_of_origin'],
+        language_proficiency=data.get('language_proficiency'),
+        arrival_date=datetime.strptime(data['arrival_date'], '%Y-%m-%d').date()
+    )
+    
+    db.session.add(student)
     db.session.commit()
-    return jsonify(new_student.to_dict()), 201
+    
+    return jsonify({
+        'status': 'success',
+        'data': student.to_dict()
+    }), 201
 
 @international_bp.route('/students/<int:id>', methods=['PUT'])
 @jwt_required()
@@ -344,4 +404,48 @@ def cancel_event_registration(id):
     registration = EventRegistration.query.get_or_404(id)
     db.session.delete(registration)
     db.session.commit()
-    return '', 204 
+    return '', 204
+
+# International Event Routes
+@international_bp.route('/international-events', methods=['GET'])
+@jwt_required()
+def get_international_events():
+    """Get all international events"""
+    events = InternationalEvent.query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [event.to_dict() for event in events]
+    }), 200
+
+@international_bp.route('/international-events/<int:id>', methods=['GET'])
+@jwt_required()
+def get_international_event(id):
+    """Get a specific international event"""
+    event = InternationalEvent.query.get_or_404(id)
+    return jsonify({
+        'status': 'success',
+        'data': event.to_dict()
+    }), 200
+
+@international_bp.route('/international-events', methods=['POST'])
+@jwt_required()
+def create_international_event():
+    """Create a new international event"""
+    data = request.get_json()
+    
+    event = InternationalEvent(
+        title=data['title'],
+        description=data.get('description'),
+        event_date=datetime.strptime(data['event_date'], '%Y-%m-%dT%H:%M:%S'),
+        location=data.get('location'),
+        target_audience=data.get('target_audience'),
+        registration_link=data.get('registration_link')
+    )
+    
+    db.session.add(event)
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': event.to_dict()
+    }), 201 

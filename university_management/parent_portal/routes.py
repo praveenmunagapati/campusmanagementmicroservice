@@ -2,13 +2,14 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     Parent, StudentParent, ParentNotification, ParentAccessLog,
-    ParentMeeting, ParentFeedback, ParentDocument
+    ParentMeeting, ParentFeedback, ParentDocument, ParentMessage
 )
 from .. import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 parent_bp = Blueprint('parent', __name__)
+parent_portal_bp = Blueprint('parent_portal', __name__)
 
 # Parent Routes
 @parent_bp.route('/parents', methods=['GET'])
@@ -264,4 +265,173 @@ def delete_document(id):
     document = ParentDocument.query.get_or_404(id)
     db.session.delete(document)
     db.session.commit()
-    return '', 204 
+    return '', 204
+
+# Parent Portal Routes
+@parent_portal_bp.route('/parents', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'staff'])
+def get_parents_portal():
+    """Get all parent profiles"""
+    student_id = request.args.get('student_id')
+    relationship = request.args.get('relationship')
+    
+    query = Parent.query
+    
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    if relationship:
+        query = query.filter_by(relationship=relationship)
+    
+    parents = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [parent.to_dict() for parent in parents]
+    }), 200
+
+@parent_portal_bp.route('/parents/<int:id>', methods=['GET'])
+@jwt_required()
+def get_parent_portal(id):
+    """Get specific parent profile"""
+    parent = Parent.query.get_or_404(id)
+    return jsonify({
+        'status': 'success',
+        'data': parent.to_dict()
+    }), 200
+
+@parent_portal_bp.route('/parents', methods=['POST'])
+@jwt_required()
+@role_required(['admin', 'staff'])
+def create_parent_portal():
+    """Create new parent profile"""
+    data = request.get_json()
+    
+    parent = Parent(
+        user_id=data['user_id'],
+        student_id=data['student_id'],
+        relationship=data['relationship'],
+        is_primary=data.get('is_primary', False),
+        can_view_grades=data.get('can_view_grades', True),
+        can_view_attendance=data.get('can_view_attendance', True),
+        can_view_discipline=data.get('can_view_discipline', True)
+    )
+    
+    db.session.add(parent)
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': parent.to_dict()
+    }), 201
+
+# Parent Message Routes
+@parent_portal_bp.route('/messages', methods=['GET'])
+@jwt_required()
+def get_messages():
+    """Get all parent messages"""
+    parent_id = request.args.get('parent_id')
+    recipient_id = request.args.get('recipient_id')
+    status = request.args.get('status')
+    
+    query = ParentMessage.query
+    
+    if parent_id:
+        query = query.filter_by(parent_id=parent_id)
+    if recipient_id:
+        query = query.filter_by(recipient_id=recipient_id)
+    if status:
+        query = query.filter_by(status=status)
+    
+    messages = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [message.to_dict() for message in messages]
+    }), 200
+
+@parent_portal_bp.route('/messages', methods=['POST'])
+@jwt_required()
+def create_message():
+    """Create new parent message"""
+    data = request.get_json()
+    
+    message = ParentMessage(
+        parent_id=get_jwt_identity()['id'],
+        recipient_id=data['recipient_id'],
+        subject=data['subject'],
+        message=data['message'],
+        status='unread'
+    )
+    
+    db.session.add(message)
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': message.to_dict()
+    }), 201
+
+# Parent Meeting Routes
+@parent_portal_bp.route('/meetings', methods=['GET'])
+@jwt_required()
+def get_meetings():
+    """Get all parent meetings"""
+    parent_id = request.args.get('parent_id')
+    staff_id = request.args.get('staff_id')
+    student_id = request.args.get('student_id')
+    status = request.args.get('status')
+    
+    query = ParentMeeting.query
+    
+    if parent_id:
+        query = query.filter_by(parent_id=parent_id)
+    if staff_id:
+        query = query.filter_by(staff_id=staff_id)
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    if status:
+        query = query.filter_by(status=status)
+    
+    meetings = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [meeting.to_dict() for meeting in meetings]
+    }), 200
+
+@parent_portal_bp.route('/meetings', methods=['POST'])
+@jwt_required()
+def create_meeting():
+    """Create new parent meeting"""
+    data = request.get_json()
+    
+    meeting = ParentMeeting(
+        parent_id=data['parent_id'],
+        staff_id=data['staff_id'],
+        student_id=data['student_id'],
+        meeting_date=datetime.strptime(data['meeting_date'], '%Y-%m-%dT%H:%M:%S'),
+        duration=data.get('duration'),
+        purpose=data.get('purpose'),
+        status='scheduled',
+        notes=data.get('notes')
+    )
+    
+    db.session.add(meeting)
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': meeting.to_dict()
+    }), 201
+
+@parent_portal_bp.route('/meetings/<int:id>/complete', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'staff'])
+def complete_meeting(id):
+    """Mark meeting as completed"""
+    meeting = ParentMeeting.query.get_or_404(id)
+    meeting.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': meeting.to_dict()
+    }), 200 

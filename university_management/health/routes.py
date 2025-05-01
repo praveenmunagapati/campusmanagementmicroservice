@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
     MedicalRecord, Appointment, HealthService, Visit,
-    Immunization, HealthAlert
+    Immunization, HealthAlert, HealthRecord, HealthAppointment
 )
 from .. import db
 from datetime import datetime
@@ -55,32 +55,66 @@ def update_medical_record(id):
 @role_required(['admin', 'health'])
 def get_appointments():
     """Get all appointments"""
-    appointments = Appointment.query.all()
-    return jsonify([appointment.to_dict() for appointment in appointments])
+    student_id = request.args.get('student_id')
+    staff_id = request.args.get('staff_id')
+    appointment_type = request.args.get('appointment_type')
+    status = request.args.get('status')
+    
+    query = HealthAppointment.query
+    
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    if staff_id:
+        query = query.filter_by(staff_id=staff_id)
+    if appointment_type:
+        query = query.filter_by(appointment_type=appointment_type)
+    if status:
+        query = query.filter_by(status=status)
+    
+    appointments = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [appointment.to_dict() for appointment in appointments]
+    }), 200
 
 @health_bp.route('/appointments/<int:id>', methods=['GET'])
 @jwt_required()
 def get_appointment_by_id(id):
     """Get specific appointment by ID"""
-    appointment = Appointment.query.get_or_404(id)
+    appointment = HealthAppointment.query.get_or_404(id)
     return jsonify(appointment.to_dict())
 
 @health_bp.route('/appointments', methods=['POST'])
 @jwt_required()
 def create_appointment():
-    """Create new appointment"""
+    """Create new health appointment"""
     data = request.get_json()
-    new_appointment = Appointment(**data)
-    db.session.add(new_appointment)
+    
+    appointment = HealthAppointment(
+        student_id=data['student_id'],
+        staff_id=data['staff_id'],
+        appointment_type=data['appointment_type'],
+        appointment_date=datetime.strptime(data['appointment_date'], '%Y-%m-%dT%H:%M:%S'),
+        duration=data.get('duration'),
+        reason=data.get('reason'),
+        status='scheduled',
+        notes=data.get('notes')
+    )
+    
+    db.session.add(appointment)
     db.session.commit()
-    return jsonify(new_appointment.to_dict()), 201
+    
+    return jsonify({
+        'status': 'success',
+        'data': appointment.to_dict()
+    }), 201
 
 @health_bp.route('/appointments/<int:id>', methods=['PUT'])
 @jwt_required()
 @role_required(['admin', 'health'])
 def update_appointment(id):
     """Update existing appointment"""
-    appointment = Appointment.query.get_or_404(id)
+    appointment = HealthAppointment.query.get_or_404(id)
     data = request.get_json()
     for key, value in data.items():
         setattr(appointment, key, value)
@@ -92,7 +126,7 @@ def update_appointment(id):
 @role_required(['admin', 'health'])
 def delete_appointment(id):
     """Delete appointment"""
-    appointment = Appointment.query.get_or_404(id)
+    appointment = HealthAppointment.query.get_or_404(id)
     db.session.delete(appointment)
     db.session.commit()
     return '', 204
@@ -187,11 +221,23 @@ def update_visit(id):
 # Immunization Routes
 @health_bp.route('/immunizations', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'health'])
 def get_immunizations():
     """Get all immunizations"""
-    immunizations = Immunization.query.all()
-    return jsonify([immunization.to_dict() for immunization in immunizations])
+    student_id = request.args.get('student_id')
+    status = request.args.get('status')
+    
+    query = Immunization.query
+    
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    if status:
+        query = query.filter_by(status=status)
+    
+    immunizations = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [immunization.to_dict() for immunization in immunizations]
+    }), 200
 
 @health_bp.route('/immunizations/<int:id>', methods=['GET'])
 @jwt_required()
@@ -202,14 +248,28 @@ def get_immunization_by_id(id):
 
 @health_bp.route('/immunizations', methods=['POST'])
 @jwt_required()
-@role_required(['admin', 'health'])
+@role_required(['admin', 'health_staff'])
 def create_immunization():
     """Create new immunization record"""
     data = request.get_json()
-    new_immunization = Immunization(**data)
-    db.session.add(new_immunization)
+    
+    immunization = Immunization(
+        student_id=data['student_id'],
+        vaccine_name=data['vaccine_name'],
+        date_administered=datetime.strptime(data['date_administered'], '%Y-%m-%d').date(),
+        next_due_date=datetime.strptime(data['next_due_date'], '%Y-%m-%d').date() if data.get('next_due_date') else None,
+        provider=data.get('provider'),
+        batch_number=data.get('batch_number'),
+        status='completed'
+    )
+    
+    db.session.add(immunization)
     db.session.commit()
-    return jsonify(new_immunization.to_dict()), 201
+    
+    return jsonify({
+        'status': 'success',
+        'data': immunization.to_dict()
+    }), 201
 
 @health_bp.route('/immunizations/<int:id>', methods=['PUT'])
 @jwt_required()
@@ -279,4 +339,70 @@ def delete_health_alert(id):
     alert = HealthAlert.query.get_or_404(id)
     db.session.delete(alert)
     db.session.commit()
-    return '', 204 
+    return '', 204
+
+# Health Record Routes
+@health_bp.route('/records', methods=['GET'])
+@jwt_required()
+def get_health_records():
+    """Get all health records"""
+    student_id = request.args.get('student_id')
+    record_type = request.args.get('record_type')
+    status = request.args.get('status')
+    
+    query = HealthRecord.query
+    
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    if record_type:
+        query = query.filter_by(record_type=record_type)
+    if status:
+        query = query.filter_by(status=status)
+    
+    records = query.all()
+    return jsonify({
+        'status': 'success',
+        'data': [record.to_dict() for record in records]
+    }), 200
+
+@health_bp.route('/records', methods=['POST'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def create_health_record():
+    """Create new health record"""
+    data = request.get_json()
+    
+    record = HealthRecord(
+        student_id=data['student_id'],
+        record_type=data['record_type'],
+        date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
+        description=data.get('description'),
+        diagnosis=data.get('diagnosis'),
+        treatment=data.get('treatment'),
+        medication=data.get('medication'),
+        follow_up_date=datetime.strptime(data['follow_up_date'], '%Y-%m-%d').date() if data.get('follow_up_date') else None,
+        status='active'
+    )
+    
+    db.session.add(record)
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': record.to_dict()
+    }), 201
+
+# Health Appointment Routes
+@health_bp.route('/appointments/<int:id>/complete', methods=['PUT'])
+@jwt_required()
+@role_required(['admin', 'health_staff'])
+def complete_appointment(id):
+    """Mark appointment as completed"""
+    appointment = HealthAppointment.query.get_or_404(id)
+    appointment.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'data': appointment.to_dict()
+    }), 200 
