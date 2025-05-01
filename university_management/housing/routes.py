@@ -4,9 +4,14 @@ from .. import db
 from .models import (
     ResidenceHall, Room, RoomOccupancy, 
     ResidenceStaff, MaintenanceRequest, 
-    RoomInspection, HousingApplication
+    RoomInspection, HousingApplication,
+    HousingUnit, UnitType, UnitBooking, UnitMaintenance,
+    UnitInventory, UnitLocation, UnitAccess, UnitUsage,
+    UnitDamage, UnitReport, UnitPayment, UnitAllocation,
+    UnitInspection as UnitInspectionModel, UnitCleaning, UnitAmenity, UnitRule
 )
-from ..utils import role_required
+from ..utils import role_required, validate_request, format_response, log_activity, handle_exception
+from datetime import datetime
 
 housing = Blueprint('housing', __name__)
 
@@ -261,4 +266,466 @@ def update_application_status(application_id):
     application = HousingApplication.query.get_or_404(application_id)
     application.status = data['status']
     db.session.commit()
-    return jsonify({'message': 'Application status updated successfully'}), 200 
+    return jsonify({'message': 'Application status updated successfully'}), 200
+
+@housing.route('/units', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_units():
+    """Get all housing units with optional filters"""
+    try:
+        unit_type = request.args.get('unit_type')
+        location = request.args.get('location')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = HousingUnit.query
+        
+        if unit_type:
+            query = query.filter_by(unit_type=unit_type)
+        if location:
+            query = query.filter_by(location=location)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(HousingUnit.available_from >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(HousingUnit.available_until <= datetime.fromisoformat(end_date))
+        
+        units = query.all()
+        return format_response([unit.to_dict() for unit in units])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/types', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_unit_types():
+    """Get all unit types with optional filters"""
+    try:
+        name = request.args.get('name')
+        capacity = request.args.get('capacity')
+        status = request.args.get('status')
+        
+        query = UnitType.query
+        
+        if name:
+            query = query.filter(UnitType.name.ilike(f'%{name}%'))
+        if capacity:
+            query = query.filter_by(capacity=capacity)
+        if status:
+            query = query.filter_by(status=status)
+        
+        types = query.all()
+        return format_response([type_.to_dict() for type_ in types])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/bookings', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_bookings():
+    """Get all unit bookings with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        student_id = request.args.get('student_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitBooking.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitBooking.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitBooking.end_date <= datetime.fromisoformat(end_date))
+        
+        bookings = query.all()
+        return format_response([booking.to_dict() for booking in bookings])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/maintenance', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_maintenance():
+    """Get all maintenance records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        maintenance_type = request.args.get('maintenance_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitMaintenance.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if maintenance_type:
+            query = query.filter_by(maintenance_type=maintenance_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitMaintenance.date_reported >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitMaintenance.date_reported <= datetime.fromisoformat(end_date))
+        
+        maintenance = query.all()
+        return format_response([record.to_dict() for record in maintenance])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/inventory', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_inventory():
+    """Get all inventory records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        item_type = request.args.get('item_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitInventory.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if item_type:
+            query = query.filter_by(item_type=item_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitInventory.acquisition_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitInventory.acquisition_date <= datetime.fromisoformat(end_date))
+        
+        inventory = query.all()
+        return format_response([item.to_dict() for item in inventory])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/locations', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_locations():
+    """Get all unit locations with optional filters"""
+    try:
+        location_type = request.args.get('location_type')
+        status = request.args.get('status')
+        
+        query = UnitLocation.query
+        
+        if location_type:
+            query = query.filter_by(location_type=location_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        locations = query.all()
+        return format_response([location.to_dict() for location in locations])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/access', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_access():
+    """Get all access records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        student_id = request.args.get('student_id')
+        access_type = request.args.get('access_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitAccess.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if access_type:
+            query = query.filter_by(access_type=access_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitAccess.access_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitAccess.access_date <= datetime.fromisoformat(end_date))
+        
+        access = query.all()
+        return format_response([record.to_dict() for record in access])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/usage', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_usage():
+    """Get all usage records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        student_id = request.args.get('student_id')
+        usage_type = request.args.get('usage_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitUsage.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if usage_type:
+            query = query.filter_by(usage_type=usage_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitUsage.usage_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitUsage.usage_date <= datetime.fromisoformat(end_date))
+        
+        usage = query.all()
+        return format_response([record.to_dict() for record in usage])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/damage', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_damage():
+    """Get all damage records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        damage_type = request.args.get('damage_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitDamage.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if damage_type:
+            query = query.filter_by(damage_type=damage_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitDamage.date_reported >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitDamage.date_reported <= datetime.fromisoformat(end_date))
+        
+        damage = query.all()
+        return format_response([record.to_dict() for record in damage])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/reports', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_reports():
+    """Get all reports with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        report_type = request.args.get('report_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitReport.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if report_type:
+            query = query.filter_by(report_type=report_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitReport.report_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitReport.report_date <= datetime.fromisoformat(end_date))
+        
+        reports = query.all()
+        return format_response([report.to_dict() for report in reports])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/payments', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_payments():
+    """Get all payments with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        student_id = request.args.get('student_id')
+        payment_type = request.args.get('payment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitPayment.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if payment_type:
+            query = query.filter_by(payment_type=payment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitPayment.payment_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitPayment.payment_date <= datetime.fromisoformat(end_date))
+        
+        payments = query.all()
+        return format_response([payment.to_dict() for payment in payments])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/allocations', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_allocations():
+    """Get all allocations with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        student_id = request.args.get('student_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitAllocation.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitAllocation.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitAllocation.end_date <= datetime.fromisoformat(end_date))
+        
+        allocations = query.all()
+        return format_response([allocation.to_dict() for allocation in allocations])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/inspections', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_inspections():
+    """Get all inspections with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        inspector_id = request.args.get('inspector_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitInspectionModel.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if inspector_id:
+            query = query.filter_by(inspector_id=inspector_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitInspectionModel.inspection_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitInspectionModel.inspection_date <= datetime.fromisoformat(end_date))
+        
+        inspections = query.all()
+        return format_response([inspection.to_dict() for inspection in inspections])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/cleaning', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_cleaning():
+    """Get all cleaning records with optional filters"""
+    try:
+        unit_id = request.args.get('unit_id')
+        cleaner_id = request.args.get('cleaner_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitCleaning.query
+        
+        if unit_id:
+            query = query.filter_by(unit_id=unit_id)
+        if cleaner_id:
+            query = query.filter_by(cleaner_id=cleaner_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitCleaning.cleaning_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitCleaning.cleaning_date <= datetime.fromisoformat(end_date))
+        
+        cleaning = query.all()
+        return format_response([record.to_dict() for record in cleaning])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/amenities', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_amenities():
+    """Get all amenities with optional filters"""
+    try:
+        amenity_type = request.args.get('amenity_type')
+        status = request.args.get('status')
+        
+        query = UnitAmenity.query
+        
+        if amenity_type:
+            query = query.filter_by(amenity_type=amenity_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        amenities = query.all()
+        return format_response([amenity.to_dict() for amenity in amenities])
+    except Exception as e:
+        return handle_exception(e)
+
+@housing.route('/rules', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'housing_manager'])
+def get_rules():
+    """Get all rules with optional filters"""
+    try:
+        rule_type = request.args.get('rule_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = UnitRule.query
+        
+        if rule_type:
+            query = query.filter_by(rule_type=rule_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(UnitRule.effective_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(UnitRule.effective_date <= datetime.fromisoformat(end_date))
+        
+        rules = query.all()
+        return format_response([rule.to_dict() for rule in rules])
+    except Exception as e:
+        return handle_exception(e) 

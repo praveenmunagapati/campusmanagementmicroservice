@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from . import db
-from .models import HealthStaff, Appointment, MedicalRecord, Prescription, HealthReport, HealthEquipment, HealthInventory, Patient, Immunization, Allergy, TestResult, Treatment, Staff, Facility, Insurance, EmergencyContact
+from .models import HealthStaff, Appointment, MedicalRecord, Prescription, HealthReport, HealthEquipment, HealthInventory, Patient, Immunization, Allergy, TestResult, Treatment, Staff, Facility, Insurance, EmergencyContact, Service, ServiceType, ServiceProvider, ServiceBooking, ServicePayment, ServiceFeedback, ServiceReport, ServicePolicy, ServiceResource, ServiceStaff, ServiceFacility, ServiceEquipment, ServiceInventory, ServiceLocation, ServiceSchedule
 from ..auth.models import User
 from ..auth.utils import role_required
 from datetime import datetime
@@ -543,5 +543,154 @@ def get_emergency_contacts():
         
         contacts = query.all()
         return format_response([contact.to_dict() for contact in contacts])
+    except Exception as e:
+        return handle_exception(e)
+
+health_services_bp = Blueprint('health_services', __name__)
+
+@health_services_bp.route('/services', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_services_manager'])
+def get_services():
+    """Get all health services with optional filters"""
+    try:
+        service_type = request.args.get('service_type')
+        provider_id = request.args.get('provider_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Service.query
+        
+        if service_type:
+            query = query.filter_by(service_type=service_type)
+        if provider_id:
+            query = query.filter_by(provider_id=provider_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Service.available_from >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Service.available_until <= datetime.fromisoformat(end_date))
+        
+        services = query.all()
+        return format_response([service.to_dict() for service in services])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_services_bp.route('/types', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_services_manager'])
+def get_service_types():
+    """Get all service types with optional filters"""
+    try:
+        name = request.args.get('name')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = ServiceType.query
+        
+        if name:
+            query = query.filter(ServiceType.name.ilike(f'%{name}%'))
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        types = query.all()
+        return format_response([type_.to_dict() for type_ in types])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_services_bp.route('/providers', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_services_manager'])
+def get_providers():
+    """Get all service providers with optional filters"""
+    try:
+        provider_type = request.args.get('provider_type')
+        specialty = request.args.get('specialty')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ServiceProvider.query
+        
+        if provider_type:
+            query = query.filter_by(provider_type=provider_type)
+        if specialty:
+            query = query.filter_by(specialty=specialty)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ServiceProvider.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ServiceProvider.end_date <= datetime.fromisoformat(end_date))
+        
+        providers = query.all()
+        return format_response([provider.to_dict() for provider in providers])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_services_bp.route('/bookings', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_services_manager'])
+def get_bookings():
+    """Get all service bookings with optional filters"""
+    try:
+        service_id = request.args.get('service_id')
+        student_id = request.args.get('student_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ServiceBooking.query
+        
+        if service_id:
+            query = query.filter_by(service_id=service_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ServiceBooking.booking_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ServiceBooking.booking_date <= datetime.fromisoformat(end_date))
+        
+        bookings = query.all()
+        return format_response([booking.to_dict() for booking in bookings])
+    except Exception as e:
+        return handle_exception(e)
+
+@health_services_bp.route('/payments', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'health_services_manager'])
+def get_payments():
+    """Get all service payments with optional filters"""
+    try:
+        service_id = request.args.get('service_id')
+        student_id = request.args.get('student_id')
+        payment_type = request.args.get('payment_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ServicePayment.query
+        
+        if service_id:
+            query = query.filter_by(service_id=service_id)
+        if student_id:
+            query = query.filter_by(student_id=student_id)
+        if payment_type:
+            query = query.filter_by(payment_type=payment_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ServicePayment.payment_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ServicePayment.payment_date <= datetime.fromisoformat(end_date))
+        
+        payments = query.all()
+        return format_response([payment.to_dict() for payment in payments])
     except Exception as e:
         return handle_exception(e) 

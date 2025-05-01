@@ -1,28 +1,150 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import SupportTicket, ITEquipment, SupportStaff, SoftwareLicense, NetworkIssue, SystemMaintenance, ITResource
+from .models import (
+    Ticket, TicketType, TicketCategory,
+    TicketPriority, TicketStatus, TicketComment,
+    TicketAttachment, TicketAssignment, TicketResolution,
+    TicketFeedback, TicketReport, TicketPolicy,
+    TicketResource, TicketStaff, TicketFacility,
+    TicketEquipment, TicketInventory, TicketLocation,
+    SupportTicket, ITEquipment, SupportStaff, SoftwareLicense, NetworkIssue, SystemMaintenance, ITResource
+)
 from . import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 it_support_bp = Blueprint('it_support', __name__)
 
-# Support Ticket Routes
 @it_support_bp.route('/tickets', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'it_support_manager'])
 def get_tickets():
-    tickets = SupportTicket.query.all()
-    return jsonify([{
-        'id': t.id,
-        'user_id': t.user_id,
-        'title': t.title,
-        'description': t.description,
-        'priority': t.priority,
-        'status': t.status,
-        'created_at': t.created_at.isoformat(),
-        'resolved_at': t.resolved_at.isoformat() if t.resolved_at else None
-    } for t in tickets])
+    """Get all tickets with optional filters"""
+    try:
+        ticket_type = request.args.get('ticket_type')
+        category = request.args.get('category')
+        priority = request.args.get('priority')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Ticket.query
+        
+        if ticket_type:
+            query = query.filter_by(ticket_type=ticket_type)
+        if category:
+            query = query.filter_by(category=category)
+        if priority:
+            query = query.filter_by(priority=priority)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Ticket.created_at >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Ticket.created_at <= datetime.fromisoformat(end_date))
+        
+        tickets = query.all()
+        return format_response([ticket.to_dict() for ticket in tickets])
+    except Exception as e:
+        return handle_exception(e)
 
+@it_support_bp.route('/types', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'it_support_manager'])
+def get_ticket_types():
+    """Get all ticket types with optional filters"""
+    try:
+        name = request.args.get('name')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = TicketType.query
+        
+        if name:
+            query = query.filter(TicketType.name.ilike(f'%{name}%'))
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        types = query.all()
+        return format_response([type_.to_dict() for type_ in types])
+    except Exception as e:
+        return handle_exception(e)
+
+@it_support_bp.route('/categories', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'it_support_manager'])
+def get_categories():
+    """Get all ticket categories with optional filters"""
+    try:
+        name = request.args.get('name')
+        parent_category = request.args.get('parent_category')
+        status = request.args.get('status')
+        
+        query = TicketCategory.query
+        
+        if name:
+            query = query.filter(TicketCategory.name.ilike(f'%{name}%'))
+        if parent_category:
+            query = query.filter_by(parent_category=parent_category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        categories = query.all()
+        return format_response([category.to_dict() for category in categories])
+    except Exception as e:
+        return handle_exception(e)
+
+@it_support_bp.route('/priorities', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'it_support_manager'])
+def get_priorities():
+    """Get all ticket priorities with optional filters"""
+    try:
+        name = request.args.get('name')
+        level = request.args.get('level')
+        status = request.args.get('status')
+        
+        query = TicketPriority.query
+        
+        if name:
+            query = query.filter(TicketPriority.name.ilike(f'%{name}%'))
+        if level:
+            query = query.filter_by(level=level)
+        if status:
+            query = query.filter_by(status=status)
+        
+        priorities = query.all()
+        return format_response([priority.to_dict() for priority in priorities])
+    except Exception as e:
+        return handle_exception(e)
+
+@it_support_bp.route('/statuses', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'it_support_manager'])
+def get_statuses():
+    """Get all ticket statuses with optional filters"""
+    try:
+        name = request.args.get('name')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = TicketStatus.query
+        
+        if name:
+            query = query.filter(TicketStatus.name.ilike(f'%{name}%'))
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        statuses = query.all()
+        return format_response([status_.to_dict() for status_ in statuses])
+    except Exception as e:
+        return handle_exception(e)
+
+# Support Ticket Routes
 @it_support_bp.route('/tickets', methods=['POST'])
 @jwt_required()
 def create_ticket():

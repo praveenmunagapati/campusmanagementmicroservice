@@ -1,6 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Alumni, AlumniEvent, AlumniDonation, AlumniNetwork, AlumniJob, AlumniEducation, AlumniAchievement, AlumniContact, AlumniGroup, AlumniSurvey
+from .models import (
+    Alumni, AlumniEducation, AlumniEmployment,
+    AlumniEvent, AlumniDonation, AlumniMembership,
+    AlumniNetwork, AlumniProgram, AlumniSurvey,
+    AlumniFeedback, AlumniResource, AlumniLocation,
+    AlumniContact, AlumniAchievement, AlumniPublication
+)
 from . import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
@@ -9,7 +15,7 @@ alumni_bp = Blueprint('alumni', __name__)
 
 @alumni_bp.route('/alumni', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
+@role_required(['admin', 'alumni_manager'])
 def get_alumni():
     """Get all alumni with optional filters"""
     try:
@@ -33,13 +39,73 @@ def get_alumni():
             query = query.filter(Alumni.graduation_date <= datetime.fromisoformat(end_date))
         
         alumni = query.all()
-        return format_response([alum.to_dict() for alum in alumni])
+        return format_response([alumnus.to_dict() for alumnus in alumni])
+    except Exception as e:
+        return handle_exception(e)
+
+@alumni_bp.route('/education', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'alumni_manager'])
+def get_education():
+    """Get all alumni education records with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        degree = request.args.get('degree')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniEducation.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if degree:
+            query = query.filter_by(degree=degree)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniEducation.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniEducation.end_date <= datetime.fromisoformat(end_date))
+        
+        education = query.all()
+        return format_response([record.to_dict() for record in education])
+    except Exception as e:
+        return handle_exception(e)
+
+@alumni_bp.route('/employment', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'alumni_manager'])
+def get_employment():
+    """Get all alumni employment records with optional filters"""
+    try:
+        alumni_id = request.args.get('alumni_id')
+        company = request.args.get('company')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniEmployment.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if company:
+            query = query.filter(AlumniEmployment.company.ilike(f'%{company}%'))
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniEmployment.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniEmployment.end_date <= datetime.fromisoformat(end_date))
+        
+        employment = query.all()
+        return format_response([record.to_dict() for record in employment])
     except Exception as e:
         return handle_exception(e)
 
 @alumni_bp.route('/events', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
+@role_required(['admin', 'alumni_manager'])
 def get_events():
     """Get all alumni events with optional filters"""
     try:
@@ -55,9 +121,9 @@ def get_events():
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(AlumniEvent.date >= datetime.fromisoformat(start_date))
+            query = query.filter(AlumniEvent.event_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(AlumniEvent.date <= datetime.fromisoformat(end_date))
+            query = query.filter(AlumniEvent.event_date <= datetime.fromisoformat(end_date))
         
         events = query.all()
         return format_response([event.to_dict() for event in events])
@@ -66,7 +132,7 @@ def get_events():
 
 @alumni_bp.route('/donations', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff'])
+@role_required(['admin', 'alumni_manager'])
 def get_donations():
     """Get all alumni donations with optional filters"""
     try:
@@ -85,177 +151,102 @@ def get_donations():
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(AlumniDonation.date >= datetime.fromisoformat(start_date))
+            query = query.filter(AlumniDonation.donation_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(AlumniDonation.date <= datetime.fromisoformat(end_date))
+            query = query.filter(AlumniDonation.donation_date <= datetime.fromisoformat(end_date))
         
         donations = query.all()
         return format_response([donation.to_dict() for donation in donations])
     except Exception as e:
         return handle_exception(e)
 
-@alumni_bp.route('/network', methods=['GET'])
+@alumni_bp.route('/memberships', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
-def get_network():
-    """Get all alumni network connections with optional filters"""
+@role_required(['admin', 'alumni_manager'])
+def get_memberships():
+    """Get all alumni memberships with optional filters"""
     try:
         alumni_id = request.args.get('alumni_id')
-        connection_type = request.args.get('connection_type')
+        membership_type = request.args.get('membership_type')
         status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AlumniMembership.query
+        
+        if alumni_id:
+            query = query.filter_by(alumni_id=alumni_id)
+        if membership_type:
+            query = query.filter_by(membership_type=membership_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniMembership.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniMembership.end_date <= datetime.fromisoformat(end_date))
+        
+        memberships = query.all()
+        return format_response([membership.to_dict() for membership in memberships])
+    except Exception as e:
+        return handle_exception(e)
+
+@alumni_bp.route('/networks', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'alumni_manager'])
+def get_networks():
+    """Get all alumni networks with optional filters"""
+    try:
+        network_type = request.args.get('network_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
         
         query = AlumniNetwork.query
         
-        if alumni_id:
-            query = query.filter_by(alumni_id=alumni_id)
-        if connection_type:
-            query = query.filter_by(connection_type=connection_type)
+        if network_type:
+            query = query.filter_by(network_type=network_type)
         if status:
             query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(AlumniNetwork.created_at >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(AlumniNetwork.created_at <= datetime.fromisoformat(end_date))
         
-        connections = query.all()
-        return format_response([conn.to_dict() for conn in connections])
+        networks = query.all()
+        return format_response([network.to_dict() for network in networks])
     except Exception as e:
         return handle_exception(e)
 
-@alumni_bp.route('/jobs', methods=['GET'])
+@alumni_bp.route('/programs', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
-def get_jobs():
-    """Get all alumni jobs with optional filters"""
+@role_required(['admin', 'alumni_manager'])
+def get_programs():
+    """Get all alumni programs with optional filters"""
     try:
-        alumni_id = request.args.get('alumni_id')
-        job_type = request.args.get('job_type')
+        program_type = request.args.get('program_type')
         status = request.args.get('status')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        query = AlumniJob.query
+        query = AlumniProgram.query
         
-        if alumni_id:
-            query = query.filter_by(alumni_id=alumni_id)
-        if job_type:
-            query = query.filter_by(job_type=job_type)
+        if program_type:
+            query = query.filter_by(program_type=program_type)
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(AlumniJob.start_date >= datetime.fromisoformat(start_date))
+            query = query.filter(AlumniProgram.start_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(AlumniJob.end_date <= datetime.fromisoformat(end_date))
+            query = query.filter(AlumniProgram.end_date <= datetime.fromisoformat(end_date))
         
-        jobs = query.all()
-        return format_response([job.to_dict() for job in jobs])
-    except Exception as e:
-        return handle_exception(e)
-
-@alumni_bp.route('/education', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
-def get_education():
-    """Get all alumni education records with optional filters"""
-    try:
-        alumni_id = request.args.get('alumni_id')
-        degree_type = request.args.get('degree_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = AlumniEducation.query
-        
-        if alumni_id:
-            query = query.filter_by(alumni_id=alumni_id)
-        if degree_type:
-            query = query.filter_by(degree_type=degree_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(AlumniEducation.start_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(AlumniEducation.end_date <= datetime.fromisoformat(end_date))
-        
-        education_records = query.all()
-        return format_response([record.to_dict() for record in education_records])
-    except Exception as e:
-        return handle_exception(e)
-
-@alumni_bp.route('/achievements', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
-def get_achievements():
-    """Get all alumni achievements with optional filters"""
-    try:
-        alumni_id = request.args.get('alumni_id')
-        achievement_type = request.args.get('achievement_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = AlumniAchievement.query
-        
-        if alumni_id:
-            query = query.filter_by(alumni_id=alumni_id)
-        if achievement_type:
-            query = query.filter_by(achievement_type=achievement_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(AlumniAchievement.date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(AlumniAchievement.date <= datetime.fromisoformat(end_date))
-        
-        achievements = query.all()
-        return format_response([achievement.to_dict() for achievement in achievements])
-    except Exception as e:
-        return handle_exception(e)
-
-@alumni_bp.route('/contacts', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'alumni_staff'])
-def get_contacts():
-    """Get all alumni contacts with optional filters"""
-    try:
-        alumni_id = request.args.get('alumni_id')
-        contact_type = request.args.get('contact_type')
-        status = request.args.get('status')
-        
-        query = AlumniContact.query
-        
-        if alumni_id:
-            query = query.filter_by(alumni_id=alumni_id)
-        if contact_type:
-            query = query.filter_by(contact_type=contact_type)
-        if status:
-            query = query.filter_by(status=status)
-        
-        contacts = query.all()
-        return format_response([contact.to_dict() for contact in contacts])
-    except Exception as e:
-        return handle_exception(e)
-
-@alumni_bp.route('/groups', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'alumni_staff', 'alumni'])
-def get_groups():
-    """Get all alumni groups with optional filters"""
-    try:
-        group_type = request.args.get('group_type')
-        status = request.args.get('status')
-        
-        query = AlumniGroup.query
-        
-        if group_type:
-            query = query.filter_by(group_type=group_type)
-        if status:
-            query = query.filter_by(status=status)
-        
-        groups = query.all()
-        return format_response([group.to_dict() for group in groups])
+        programs = query.all()
+        return format_response([program.to_dict() for program in programs])
     except Exception as e:
         return handle_exception(e)
 
 @alumni_bp.route('/surveys', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'alumni_staff'])
+@role_required(['admin', 'alumni_manager'])
 def get_surveys():
     """Get all alumni surveys with optional filters"""
     try:
@@ -271,9 +262,9 @@ def get_surveys():
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(AlumniSurvey.start_date >= datetime.fromisoformat(start_date))
+            query = query.filter(AlumniSurvey.created_at >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(AlumniSurvey.end_date <= datetime.fromisoformat(end_date))
+            query = query.filter(AlumniSurvey.created_at <= datetime.fromisoformat(end_date))
         
         surveys = query.all()
         return format_response([survey.to_dict() for survey in surveys])

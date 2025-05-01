@@ -1,225 +1,159 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import Building, Room, Maintenance, Equipment, FacilityStaff, FacilityBooking, FacilityReport
+from .models import (
+    Facility, FacilityType, FacilityBooking,
+    FacilityMaintenance, FacilityInventory,
+    FacilityLocation, FacilityAccess, FacilityUsage,
+    FacilityDamage, FacilityReport, FacilityPayment,
+    FacilityAllocation, FacilityInspection, FacilityCleaning,
+    FacilityAmenity, FacilityRule
+)
 from . import db
 from datetime import datetime
 from utils import role_required, validate_request, format_response, log_activity, handle_exception
 
 facilities_bp = Blueprint('facilities', __name__)
 
-# Building Routes
-@facilities_bp.route('/buildings', methods=['GET'])
+@facilities_bp.route('/facilities', methods=['GET'])
 @jwt_required()
-def get_buildings():
-    buildings = Building.query.all()
-    return jsonify([{
-        'id': b.id,
-        'name': b.name,
-        'code': b.code,
-        'address': b.address,
-        'floors': b.floors,
-        'status': b.status
-    } for b in buildings])
+@role_required(['admin', 'facilities_manager'])
+def get_facilities():
+    """Get all facilities with optional filters"""
+    try:
+        facility_type = request.args.get('facility_type')
+        location = request.args.get('location')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = Facility.query
+        
+        if facility_type:
+            query = query.filter_by(facility_type=facility_type)
+        if location:
+            query = query.filter_by(location=location)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(Facility.available_from >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(Facility.available_until <= datetime.fromisoformat(end_date))
+        
+        facilities = query.all()
+        return format_response([facility.to_dict() for facility in facilities])
+    except Exception as e:
+        return handle_exception(e)
 
-@facilities_bp.route('/buildings', methods=['POST'])
+@facilities_bp.route('/types', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'facilities'])
-def create_building():
-    data = request.get_json()
-    building = Building(
-        name=data['name'],
-        code=data['code'],
-        address=data['address'],
-        floors=data['floors'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(building)
-    db.session.commit()
-    return jsonify({'message': 'Building added successfully', 'id': building.id}), 201
+@role_required(['admin', 'facilities_manager'])
+def get_facility_types():
+    """Get all facility types with optional filters"""
+    try:
+        name = request.args.get('name')
+        category = request.args.get('category')
+        status = request.args.get('status')
+        
+        query = FacilityType.query
+        
+        if name:
+            query = query.filter(FacilityType.name.ilike(f'%{name}%'))
+        if category:
+            query = query.filter_by(category=category)
+        if status:
+            query = query.filter_by(status=status)
+        
+        types = query.all()
+        return format_response([type_.to_dict() for type_ in types])
+    except Exception as e:
+        return handle_exception(e)
 
-# Room Routes
-@facilities_bp.route('/rooms', methods=['GET'])
-@jwt_required()
-def get_rooms():
-    rooms = Room.query.all()
-    return jsonify([{
-        'id': r.id,
-        'building_id': r.building_id,
-        'room_number': r.room_number,
-        'room_type': r.room_type,
-        'capacity': r.capacity,
-        'status': r.status
-    } for r in rooms])
-
-@facilities_bp.route('/rooms', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_room():
-    data = request.get_json()
-    room = Room(
-        building_id=data['building_id'],
-        room_number=data['room_number'],
-        room_type=data['room_type'],
-        capacity=data['capacity'],
-        status=data.get('status', 'available')
-    )
-    db.session.add(room)
-    db.session.commit()
-    return jsonify({'message': 'Room added successfully', 'id': room.id}), 201
-
-# Maintenance Routes
-@facilities_bp.route('/maintenance', methods=['GET'])
-@jwt_required()
-def get_maintenance():
-    maintenance = Maintenance.query.all()
-    return jsonify([{
-        'id': m.id,
-        'building_id': m.building_id,
-        'room_id': m.room_id,
-        'maintenance_type': m.maintenance_type,
-        'description': m.description,
-        'scheduled_date': m.scheduled_date.isoformat(),
-        'completed_date': m.completed_date.isoformat() if m.completed_date else None,
-        'status': m.status
-    } for m in maintenance])
-
-@facilities_bp.route('/maintenance', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_maintenance():
-    data = request.get_json()
-    maintenance = Maintenance(
-        building_id=data['building_id'],
-        room_id=data.get('room_id'),
-        maintenance_type=data['maintenance_type'],
-        description=data['description'],
-        scheduled_date=datetime.fromisoformat(data['scheduled_date']),
-        status=data.get('status', 'scheduled')
-    )
-    db.session.add(maintenance)
-    db.session.commit()
-    return jsonify({'message': 'Maintenance scheduled successfully', 'id': maintenance.id}), 201
-
-# Equipment Routes
-@facilities_bp.route('/equipment', methods=['GET'])
-@jwt_required()
-def get_equipment():
-    equipment = Equipment.query.all()
-    return jsonify([{
-        'id': e.id,
-        'name': e.name,
-        'equipment_type': e.equipment_type,
-        'location_id': e.location_id,
-        'purchase_date': e.purchase_date.isoformat(),
-        'last_maintenance': e.last_maintenance.isoformat() if e.last_maintenance else None,
-        'status': e.status
-    } for e in equipment])
-
-@facilities_bp.route('/equipment', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_equipment():
-    data = request.get_json()
-    equipment = Equipment(
-        name=data['name'],
-        equipment_type=data['equipment_type'],
-        location_id=data['location_id'],
-        purchase_date=datetime.fromisoformat(data['purchase_date']),
-        status=data.get('status', 'active')
-    )
-    db.session.add(equipment)
-    db.session.commit()
-    return jsonify({'message': 'Equipment added successfully', 'id': equipment.id}), 201
-
-# Facility Staff Routes
-@facilities_bp.route('/staff', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def get_staff():
-    staff = FacilityStaff.query.all()
-    return jsonify([{
-        'id': s.id,
-        'user_id': s.user_id,
-        'role': s.role,
-        'department': s.department,
-        'status': s.status
-    } for s in staff])
-
-@facilities_bp.route('/staff', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_staff():
-    data = request.get_json()
-    staff = FacilityStaff(
-        user_id=data['user_id'],
-        role=data['role'],
-        department=data['department'],
-        status=data.get('status', 'active')
-    )
-    db.session.add(staff)
-    db.session.commit()
-    return jsonify({'message': 'Facility staff added successfully', 'id': staff.id}), 201
-
-# Facility Booking Routes
 @facilities_bp.route('/bookings', methods=['GET'])
 @jwt_required()
+@role_required(['admin', 'facilities_manager'])
 def get_bookings():
-    bookings = FacilityBooking.query.all()
-    return jsonify([{
-        'id': b.id,
-        'room_id': b.room_id,
-        'user_id': b.user_id,
-        'purpose': b.purpose,
-        'start_time': b.start_time.isoformat(),
-        'end_time': b.end_time.isoformat(),
-        'status': b.status
-    } for b in bookings])
+    """Get all facility bookings with optional filters"""
+    try:
+        facility_id = request.args.get('facility_id')
+        user_id = request.args.get('user_id')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = FacilityBooking.query
+        
+        if facility_id:
+            query = query.filter_by(facility_id=facility_id)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(FacilityBooking.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(FacilityBooking.end_date <= datetime.fromisoformat(end_date))
+        
+        bookings = query.all()
+        return format_response([booking.to_dict() for booking in bookings])
+    except Exception as e:
+        return handle_exception(e)
 
-@facilities_bp.route('/bookings', methods=['POST'])
+@facilities_bp.route('/maintenance', methods=['GET'])
 @jwt_required()
-def create_booking():
-    data = request.get_json()
-    booking = FacilityBooking(
-        room_id=data['room_id'],
-        user_id=data['user_id'],
-        purpose=data['purpose'],
-        start_time=datetime.fromisoformat(data['start_time']),
-        end_time=datetime.fromisoformat(data['end_time']),
-        status=data.get('status', 'pending')
-    )
-    db.session.add(booking)
-    db.session.commit()
-    return jsonify({'message': 'Facility booking created successfully', 'id': booking.id}), 201
+@role_required(['admin', 'facilities_manager'])
+def get_maintenance():
+    """Get all maintenance records with optional filters"""
+    try:
+        facility_id = request.args.get('facility_id')
+        maintenance_type = request.args.get('maintenance_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = FacilityMaintenance.query
+        
+        if facility_id:
+            query = query.filter_by(facility_id=facility_id)
+        if maintenance_type:
+            query = query.filter_by(maintenance_type=maintenance_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(FacilityMaintenance.date_reported >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(FacilityMaintenance.date_reported <= datetime.fromisoformat(end_date))
+        
+        maintenance = query.all()
+        return format_response([record.to_dict() for record in maintenance])
+    except Exception as e:
+        return handle_exception(e)
 
-# Facility Report Routes
-@facilities_bp.route('/reports', methods=['GET'])
+@facilities_bp.route('/inventory', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'facilities'])
-def get_reports():
-    reports = FacilityReport.query.all()
-    return jsonify([{
-        'id': r.id,
-        'title': r.title,
-        'content': r.content,
-        'report_type': r.report_type,
-        'created_by': r.created_by,
-        'created_at': r.created_at.isoformat(),
-        'status': r.status
-    } for r in reports])
-
-@facilities_bp.route('/reports', methods=['POST'])
-@jwt_required()
-@role_required(['admin', 'facilities'])
-def create_report():
-    data = request.get_json()
-    report = FacilityReport(
-        title=data['title'],
-        content=data['content'],
-        report_type=data['report_type'],
-        created_by=data['created_by'],
-        created_at=datetime.fromisoformat(data['created_at']),
-        status=data.get('status', 'draft')
-    )
-    db.session.add(report)
-    db.session.commit()
-    return jsonify({'message': 'Facility report created successfully', 'id': report.id}), 201 
+@role_required(['admin', 'facilities_manager'])
+def get_inventory():
+    """Get all inventory records with optional filters"""
+    try:
+        facility_id = request.args.get('facility_id')
+        item_type = request.args.get('item_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = FacilityInventory.query
+        
+        if facility_id:
+            query = query.filter_by(facility_id=facility_id)
+        if item_type:
+            query = query.filter_by(item_type=item_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(FacilityInventory.acquisition_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(FacilityInventory.acquisition_date <= datetime.fromisoformat(end_date))
+        
+        inventory = query.all()
+        return format_response([item.to_dict() for item in inventory])
+    except Exception as e:
+        return handle_exception(e) 
