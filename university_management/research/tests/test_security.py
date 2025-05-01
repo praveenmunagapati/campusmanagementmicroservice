@@ -2,12 +2,12 @@ import unittest
 import json
 from datetime import datetime
 from flask import url_for
-from ..models import Invoice, Payment, FinancialAid, User, Student
+from ..models import ResearchProject, Publication, Grant, User
 from app import db, create_app
 from flask_jwt_extended import create_access_token
 import time
 
-class TestFinanceSecurity(unittest.TestCase):
+class TestResearchSecurity(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
         self.app_context = self.app.app_context()
@@ -23,13 +23,13 @@ class TestFinanceSecurity(unittest.TestCase):
         self.admin_user.set_password('admin123')
         db.session.add(self.admin_user)
         
-        self.finance_user = User(
-            username='finance',
-            email='finance@example.com',
-            role='finance_staff'
+        self.faculty_user = User(
+            username='faculty',
+            email='faculty@example.com',
+            role='faculty'
         )
-        self.finance_user.set_password('finance123')
-        db.session.add(self.finance_user)
+        self.faculty_user.set_password('faculty123')
+        db.session.add(self.faculty_user)
         
         self.student_user = User(
             username='student',
@@ -39,14 +39,6 @@ class TestFinanceSecurity(unittest.TestCase):
         self.student_user.set_password('student123')
         db.session.add(self.student_user)
         
-        # Create a test student
-        self.student = Student(
-            name='Test Student',
-            email='student@example.com',
-            student_id='ST12345'
-        )
-        db.session.add(self.student)
-        
         db.session.commit()
         
         # Create access tokens
@@ -55,9 +47,9 @@ class TestFinanceSecurity(unittest.TestCase):
             'role': self.admin_user.role
         })
         
-        self.finance_token = create_access_token(identity={
-            'id': self.finance_user.id,
-            'role': self.finance_user.role
+        self.faculty_token = create_access_token(identity={
+            'id': self.faculty_user.id,
+            'role': self.faculty_user.role
         })
         
         self.student_token = create_access_token(identity={
@@ -70,8 +62,8 @@ class TestFinanceSecurity(unittest.TestCase):
             'Authorization': f'Bearer {self.admin_token}',
             'Content-Type': 'application/json'
         }
-        self.finance_headers = {
-            'Authorization': f'Bearer {self.finance_token}',
+        self.faculty_headers = {
+            'Authorization': f'Bearer {self.faculty_token}',
             'Content-Type': 'application/json'
         }
         self.student_headers = {
@@ -86,7 +78,7 @@ class TestFinanceSecurity(unittest.TestCase):
 
     def test_unauthorized_access(self):
         """Test access without authentication"""
-        response = self.client.get('/api/v1/finance/invoices')
+        response = self.client.get('/api/v1/research/projects')
         self.assertEqual(response.status_code, 401)
 
     def test_invalid_token(self):
@@ -95,128 +87,134 @@ class TestFinanceSecurity(unittest.TestCase):
             'Authorization': 'Bearer invalid_token',
             'Content-Type': 'application/json'
         }
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
+        response = self.client.get('/api/v1/research/projects', headers=headers)
         self.assertEqual(response.status_code, 422)
 
-    def test_role_based_access(self):
-        """Test role-based access control"""
-        # Create an invoice first
-        invoice_data = {
-            'student_id': self.student.id,
-            'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
-            'description': 'Tuition Fee'
+    def test_project_access(self):
+        """Test project access control"""
+        # Create a project first
+        project_data = {
+            'title': 'Test Project',
+            'description': 'Test project description',
+            'start_date': datetime.utcnow().isoformat(),
+            'end_date': datetime.utcnow().isoformat(),
+            'status': 'active',
+            'principal_investigator_id': self.faculty_user.id
         }
         
-        # Finance staff should be able to create
+        # Faculty should be able to create
         response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
+            '/api/v1/research/projects',
+            headers=self.faculty_headers,
+            data=json.dumps(project_data)
         )
         self.assertEqual(response.status_code, 201)
-        invoice_id = json.loads(response.data)['data']['id']
+        project_id = json.loads(response.data)['data']['id']
         
         # Admin should be able to view
         response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
+            f'/api/v1/research/projects/{project_id}',
             headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should be able to view their own invoice
+        # Student should be able to view public projects
         response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
+            f'/api/v1/research/projects/{project_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 200)
         
         # Student should not be able to create
         response = self.client.post(
-            '/api/v1/finance/invoices',
+            '/api/v1/research/projects',
             headers=self.student_headers,
-            data=json.dumps(invoice_data)
+            data=json.dumps(project_data)
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_payment_access(self):
-        """Test payment access control"""
-        # Create a payment
-        payment_data = {
-            'invoice_id': 1,
-            'amount': 1000.00,
-            'payment_method': 'credit_card',
-            'transaction_id': 'TR123456'
+    def test_publication_access(self):
+        """Test publication access control"""
+        # Create a publication
+        publication_data = {
+            'title': 'Test Publication',
+            'authors': ['John Doe', 'Jane Smith'],
+            'journal': 'Test Journal',
+            'publication_date': datetime.utcnow().isoformat(),
+            'doi': '10.1234/test',
+            'project_id': 1
         }
         
-        # Student should be able to make payment
+        # Faculty should be able to create
         response = self.client.post(
-            '/api/v1/finance/payments',
-            headers=self.student_headers,
-            data=json.dumps(payment_data)
+            '/api/v1/research/publications',
+            headers=self.faculty_headers,
+            data=json.dumps(publication_data)
         )
         self.assertEqual(response.status_code, 201)
-        payment_id = json.loads(response.data)['data']['id']
+        publication_id = json.loads(response.data)['data']['id']
         
-        # Finance staff should be able to view
+        # Admin should be able to view
         response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
-            headers=self.finance_headers
+            f'/api/v1/research/publications/{publication_id}',
+            headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should be able to view their own payment
+        # Student should be able to view
         response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
+            f'/api/v1/research/publications/{publication_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Only finance staff should be able to refund
+        # Student should not be able to create
         response = self.client.post(
-            f'/api/v1/finance/payments/{payment_id}/refund',
-            headers=self.finance_headers
+            '/api/v1/research/publications',
+            headers=self.student_headers,
+            data=json.dumps(publication_data)
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
-    def test_financial_aid_access(self):
-        """Test financial aid access control"""
-        # Create a financial aid application
-        aid_data = {
-            'student_id': self.student.id,
-            'type': 'scholarship',
-            'amount': 5000.00,
+    def test_grant_access(self):
+        """Test grant access control"""
+        # Create a grant
+        grant_data = {
+            'title': 'Test Grant',
+            'funding_agency': 'Test Agency',
+            'amount': 100000.00,
+            'start_date': datetime.utcnow().isoformat(),
+            'end_date': datetime.utcnow().isoformat(),
             'status': 'pending',
-            'description': 'Academic Excellence Scholarship'
+            'project_id': 1
         }
         
-        # Student should be able to apply
+        # Faculty should be able to create
         response = self.client.post(
-            '/api/v1/finance/financial-aid',
-            headers=self.student_headers,
-            data=json.dumps(aid_data)
+            '/api/v1/research/grants',
+            headers=self.faculty_headers,
+            data=json.dumps(grant_data)
         )
         self.assertEqual(response.status_code, 201)
-        aid_id = json.loads(response.data)['data']['id']
+        grant_id = json.loads(response.data)['data']['id']
         
-        # Finance staff should be able to view and approve
+        # Admin should be able to view and approve
         response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
-            headers=self.finance_headers
+            f'/api/v1/research/grants/{grant_id}/approve',
+            headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should be able to view their own application
+        # Faculty should be able to view their grants
         response = self.client.get(
-            f'/api/v1/finance/financial-aid/{aid_id}',
-            headers=self.student_headers
+            f'/api/v1/research/grants/{grant_id}',
+            headers=self.faculty_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should not be able to approve
-        response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
+        # Student should not be able to view grants
+        response = self.client.get(
+            f'/api/v1/research/grants/{grant_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 403)
@@ -225,7 +223,7 @@ class TestFinanceSecurity(unittest.TestCase):
         """Test SQL injection prevention"""
         # Try SQL injection in search parameter
         response = self.client.get(
-            '/api/v1/finance/invoices?search=1; DROP TABLE invoices; --',
+            '/api/v1/research/projects?search=1; DROP TABLE projects; --',
             headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
@@ -233,32 +231,33 @@ class TestFinanceSecurity(unittest.TestCase):
 
     def test_xss_prevention(self):
         """Test XSS prevention"""
-        # Try XSS in invoice data
-        invoice_data = {
-            'student_id': self.student.id,
-            'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
-            'description': '<script>alert("xss")</script>'
+        # Try XSS in project data
+        project_data = {
+            'title': '<script>alert("xss")</script>',
+            'description': 'Test project description',
+            'start_date': datetime.utcnow().isoformat(),
+            'end_date': datetime.utcnow().isoformat(),
+            'status': 'active',
+            'principal_investigator_id': self.faculty_user.id
         }
         
         response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
+            '/api/v1/research/projects',
+            headers=self.faculty_headers,
+            data=json.dumps(project_data)
         )
         self.assertEqual(response.status_code, 201)
         
         # The response should have the script tags escaped
         response_data = json.loads(response.data)
-        self.assertIn('&lt;script&gt;', response_data['data']['description'])
+        self.assertIn('&lt;script&gt;', response_data['data']['title'])
 
     def test_rate_limiting(self):
         """Test rate limiting"""
         # Make multiple requests in quick succession
         for _ in range(100):
             response = self.client.get(
-                '/api/v1/finance/invoices',
+                '/api/v1/research/projects',
                 headers=self.admin_headers
             )
             if response.status_code == 429:
@@ -286,7 +285,7 @@ class TestFinanceSecurity(unittest.TestCase):
         # Wait for token to expire
         time.sleep(2)
         
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
+        response = self.client.get('/api/v1/research/projects', headers=headers)
         self.assertEqual(response.status_code, 401)
 
 if __name__ == '__main__':

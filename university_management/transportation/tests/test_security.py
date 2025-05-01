@@ -2,12 +2,12 @@ import unittest
 import json
 from datetime import datetime
 from flask import url_for
-from ..models import Invoice, Payment, FinancialAid, User, Student
+from ..models import Vehicle, Route, Schedule, User
 from app import db, create_app
 from flask_jwt_extended import create_access_token
 import time
 
-class TestFinanceSecurity(unittest.TestCase):
+class TestTransportationSecurity(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
         self.app_context = self.app.app_context()
@@ -23,13 +23,13 @@ class TestFinanceSecurity(unittest.TestCase):
         self.admin_user.set_password('admin123')
         db.session.add(self.admin_user)
         
-        self.finance_user = User(
-            username='finance',
-            email='finance@example.com',
-            role='finance_staff'
+        self.transport_user = User(
+            username='transport',
+            email='transport@example.com',
+            role='transport_staff'
         )
-        self.finance_user.set_password('finance123')
-        db.session.add(self.finance_user)
+        self.transport_user.set_password('transport123')
+        db.session.add(self.transport_user)
         
         self.student_user = User(
             username='student',
@@ -39,14 +39,6 @@ class TestFinanceSecurity(unittest.TestCase):
         self.student_user.set_password('student123')
         db.session.add(self.student_user)
         
-        # Create a test student
-        self.student = Student(
-            name='Test Student',
-            email='student@example.com',
-            student_id='ST12345'
-        )
-        db.session.add(self.student)
-        
         db.session.commit()
         
         # Create access tokens
@@ -55,9 +47,9 @@ class TestFinanceSecurity(unittest.TestCase):
             'role': self.admin_user.role
         })
         
-        self.finance_token = create_access_token(identity={
-            'id': self.finance_user.id,
-            'role': self.finance_user.role
+        self.transport_token = create_access_token(identity={
+            'id': self.transport_user.id,
+            'role': self.transport_user.role
         })
         
         self.student_token = create_access_token(identity={
@@ -70,8 +62,8 @@ class TestFinanceSecurity(unittest.TestCase):
             'Authorization': f'Bearer {self.admin_token}',
             'Content-Type': 'application/json'
         }
-        self.finance_headers = {
-            'Authorization': f'Bearer {self.finance_token}',
+        self.transport_headers = {
+            'Authorization': f'Bearer {self.transport_token}',
             'Content-Type': 'application/json'
         }
         self.student_headers = {
@@ -86,7 +78,7 @@ class TestFinanceSecurity(unittest.TestCase):
 
     def test_unauthorized_access(self):
         """Test access without authentication"""
-        response = self.client.get('/api/v1/finance/invoices')
+        response = self.client.get('/api/v1/transportation/vehicles')
         self.assertEqual(response.status_code, 401)
 
     def test_invalid_token(self):
@@ -95,129 +87,132 @@ class TestFinanceSecurity(unittest.TestCase):
             'Authorization': 'Bearer invalid_token',
             'Content-Type': 'application/json'
         }
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
+        response = self.client.get('/api/v1/transportation/vehicles', headers=headers)
         self.assertEqual(response.status_code, 422)
 
-    def test_role_based_access(self):
-        """Test role-based access control"""
-        # Create an invoice first
-        invoice_data = {
-            'student_id': self.student.id,
-            'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
-            'description': 'Tuition Fee'
+    def test_vehicle_access(self):
+        """Test vehicle access control"""
+        # Create a vehicle first
+        vehicle_data = {
+            'name': 'Bus 1',
+            'type': 'bus',
+            'capacity': 50,
+            'registration_number': 'BUS123',
+            'status': 'active'
         }
         
-        # Finance staff should be able to create
+        # Transport staff should be able to create
         response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
+            '/api/v1/transportation/vehicles',
+            headers=self.transport_headers,
+            data=json.dumps(vehicle_data)
         )
         self.assertEqual(response.status_code, 201)
-        invoice_id = json.loads(response.data)['data']['id']
+        vehicle_id = json.loads(response.data)['data']['id']
         
         # Admin should be able to view
         response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
+            f'/api/v1/transportation/vehicles/{vehicle_id}',
             headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should be able to view their own invoice
+        # Student should be able to view
         response = self.client.get(
-            f'/api/v1/finance/invoices/{invoice_id}',
+            f'/api/v1/transportation/vehicles/{vehicle_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 200)
         
         # Student should not be able to create
         response = self.client.post(
-            '/api/v1/finance/invoices',
+            '/api/v1/transportation/vehicles',
             headers=self.student_headers,
-            data=json.dumps(invoice_data)
+            data=json.dumps(vehicle_data)
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_payment_access(self):
-        """Test payment access control"""
-        # Create a payment
-        payment_data = {
-            'invoice_id': 1,
-            'amount': 1000.00,
-            'payment_method': 'credit_card',
-            'transaction_id': 'TR123456'
+    def test_route_access(self):
+        """Test route access control"""
+        # Create a route
+        route_data = {
+            'name': 'Campus Loop',
+            'description': 'Main campus circular route',
+            'stops': ['Stop A', 'Stop B', 'Stop C'],
+            'estimated_duration': 30,
+            'status': 'active'
         }
         
-        # Student should be able to make payment
+        # Transport staff should be able to create
         response = self.client.post(
-            '/api/v1/finance/payments',
-            headers=self.student_headers,
-            data=json.dumps(payment_data)
+            '/api/v1/transportation/routes',
+            headers=self.transport_headers,
+            data=json.dumps(route_data)
         )
         self.assertEqual(response.status_code, 201)
-        payment_id = json.loads(response.data)['data']['id']
+        route_id = json.loads(response.data)['data']['id']
         
-        # Finance staff should be able to view
+        # Admin should be able to view
         response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
-            headers=self.finance_headers
+            f'/api/v1/transportation/routes/{route_id}',
+            headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should be able to view their own payment
+        # Student should be able to view
         response = self.client.get(
-            f'/api/v1/finance/payments/{payment_id}',
+            f'/api/v1/transportation/routes/{route_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Only finance staff should be able to refund
+        # Student should not be able to create
         response = self.client.post(
-            f'/api/v1/finance/payments/{payment_id}/refund',
-            headers=self.finance_headers
+            '/api/v1/transportation/routes',
+            headers=self.student_headers,
+            data=json.dumps(route_data)
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
-    def test_financial_aid_access(self):
-        """Test financial aid access control"""
-        # Create a financial aid application
-        aid_data = {
-            'student_id': self.student.id,
-            'type': 'scholarship',
-            'amount': 5000.00,
-            'status': 'pending',
-            'description': 'Academic Excellence Scholarship'
+    def test_schedule_access(self):
+        """Test schedule access control"""
+        # Create a schedule
+        schedule_data = {
+            'route_id': 1,
+            'vehicle_id': 1,
+            'departure_time': datetime.utcnow().isoformat(),
+            'arrival_time': datetime.utcnow().isoformat(),
+            'status': 'scheduled'
         }
         
-        # Student should be able to apply
+        # Transport staff should be able to create
         response = self.client.post(
-            '/api/v1/finance/financial-aid',
-            headers=self.student_headers,
-            data=json.dumps(aid_data)
+            '/api/v1/transportation/schedules',
+            headers=self.transport_headers,
+            data=json.dumps(schedule_data)
         )
         self.assertEqual(response.status_code, 201)
-        aid_id = json.loads(response.data)['data']['id']
+        schedule_id = json.loads(response.data)['data']['id']
         
-        # Finance staff should be able to view and approve
-        response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
-            headers=self.finance_headers
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Student should be able to view their own application
+        # Admin should be able to view
         response = self.client.get(
-            f'/api/v1/finance/financial-aid/{aid_id}',
+            f'/api/v1/transportation/schedules/{schedule_id}',
+            headers=self.admin_headers
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # Student should be able to view
+        response = self.client.get(
+            f'/api/v1/transportation/schedules/{schedule_id}',
             headers=self.student_headers
         )
         self.assertEqual(response.status_code, 200)
         
-        # Student should not be able to approve
-        response = self.client.put(
-            f'/api/v1/finance/financial-aid/{aid_id}/approve',
-            headers=self.student_headers
+        # Student should not be able to create
+        response = self.client.post(
+            '/api/v1/transportation/schedules',
+            headers=self.student_headers,
+            data=json.dumps(schedule_data)
         )
         self.assertEqual(response.status_code, 403)
 
@@ -225,7 +220,7 @@ class TestFinanceSecurity(unittest.TestCase):
         """Test SQL injection prevention"""
         # Try SQL injection in search parameter
         response = self.client.get(
-            '/api/v1/finance/invoices?search=1; DROP TABLE invoices; --',
+            '/api/v1/transportation/vehicles?search=1; DROP TABLE vehicles; --',
             headers=self.admin_headers
         )
         self.assertEqual(response.status_code, 200)
@@ -233,32 +228,32 @@ class TestFinanceSecurity(unittest.TestCase):
 
     def test_xss_prevention(self):
         """Test XSS prevention"""
-        # Try XSS in invoice data
-        invoice_data = {
-            'student_id': self.student.id,
-            'amount': 1000.00,
-            'due_date': datetime.utcnow().isoformat(),
-            'status': 'pending',
-            'description': '<script>alert("xss")</script>'
+        # Try XSS in vehicle data
+        vehicle_data = {
+            'name': '<script>alert("xss")</script>',
+            'type': 'bus',
+            'capacity': 50,
+            'registration_number': 'BUS123',
+            'status': 'active'
         }
         
         response = self.client.post(
-            '/api/v1/finance/invoices',
-            headers=self.finance_headers,
-            data=json.dumps(invoice_data)
+            '/api/v1/transportation/vehicles',
+            headers=self.transport_headers,
+            data=json.dumps(vehicle_data)
         )
         self.assertEqual(response.status_code, 201)
         
         # The response should have the script tags escaped
         response_data = json.loads(response.data)
-        self.assertIn('&lt;script&gt;', response_data['data']['description'])
+        self.assertIn('&lt;script&gt;', response_data['data']['name'])
 
     def test_rate_limiting(self):
         """Test rate limiting"""
         # Make multiple requests in quick succession
         for _ in range(100):
             response = self.client.get(
-                '/api/v1/finance/invoices',
+                '/api/v1/transportation/vehicles',
                 headers=self.admin_headers
             )
             if response.status_code == 429:
@@ -286,7 +281,7 @@ class TestFinanceSecurity(unittest.TestCase):
         # Wait for token to expire
         time.sleep(2)
         
-        response = self.client.get('/api/v1/finance/invoices', headers=headers)
+        response = self.client.get('/api/v1/transportation/vehicles', headers=headers)
         self.assertEqual(response.status_code, 401)
 
 if __name__ == '__main__':
