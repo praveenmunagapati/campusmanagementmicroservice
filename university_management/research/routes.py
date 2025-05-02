@@ -1,11 +1,14 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .models import (
-    ResearchProject, ResearchGrant, ResearchPublication,
-    ResearchCollaboration, ResearchEquipment, ResearchData,
-    ResearchTeam, ResearchMilestone, ResearchExpense,
-    ResearchEthics, ResearchPatent, ResearchConference,
-    ResearchTraining, ResearchAward
+    ResearchProject, ResearchGrant,
+    ResearchPublication, ResearchPatent,
+    ResearchCollaboration, ResearchEquipment,
+    ResearchLab, ResearchConference,
+    ResearchWorkshop, ResearchSeminar,
+    ResearchStudent, ResearchSupervisor,
+    ResearchLocation, ResearchContact,
+    ResearchPolicy
 )
 from . import db
 from datetime import datetime
@@ -15,8 +18,8 @@ research_bp = Blueprint('research', __name__)
 
 @research_bp.route('/projects', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_projects():
+@role_required(['admin', 'research_manager'])
+def get_projects():
     """Get all research projects with optional filters"""
     try:
         project_type = request.args.get('project_type')
@@ -42,8 +45,8 @@ def get_research_projects():
 
 @research_bp.route('/grants', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_grants():
+@role_required(['admin', 'research_manager'])
+def get_grants():
     """Get all research grants with optional filters"""
     try:
         grant_type = request.args.get('grant_type')
@@ -69,8 +72,8 @@ def get_research_grants():
 
 @research_bp.route('/publications', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_publications():
+@role_required(['admin', 'research_manager'])
+def get_publications():
     """Get all research publications with optional filters"""
     try:
         publication_type = request.args.get('publication_type')
@@ -94,10 +97,37 @@ def get_research_publications():
     except Exception as e:
         return handle_exception(e)
 
+@research_bp.route('/patents', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'research_manager'])
+def get_patents():
+    """Get all research patents with optional filters"""
+    try:
+        patent_type = request.args.get('patent_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ResearchPatent.query
+        
+        if patent_type:
+            query = query.filter_by(patent_type=patent_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ResearchPatent.filing_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ResearchPatent.filing_date <= datetime.fromisoformat(end_date))
+        
+        patents = query.all()
+        return format_response([patent.to_dict() for patent in patents])
+    except Exception as e:
+        return handle_exception(e)
+
 @research_bp.route('/collaborations', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_collaborations():
+@role_required(['admin', 'research_manager'])
+def get_collaborations():
     """Get all research collaborations with optional filters"""
     try:
         collaboration_type = request.args.get('collaboration_type')
@@ -123,8 +153,8 @@ def get_research_collaborations():
 
 @research_bp.route('/equipment', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_equipment():
+@role_required(['admin', 'research_manager'])
+def get_equipment():
     """Get all research equipment with optional filters"""
     try:
         equipment_type = request.args.get('equipment_type')
@@ -148,166 +178,37 @@ def get_research_equipment():
     except Exception as e:
         return handle_exception(e)
 
-@research_bp.route('/data', methods=['GET'])
+@research_bp.route('/labs', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_data():
-    """Get all research data with optional filters"""
+@role_required(['admin', 'research_manager'])
+def get_labs():
+    """Get all research labs with optional filters"""
     try:
-        data_type = request.args.get('data_type')
+        lab_type = request.args.get('lab_type')
         status = request.args.get('status')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        query = ResearchData.query
+        query = ResearchLab.query
         
-        if data_type:
-            query = query.filter_by(data_type=data_type)
+        if lab_type:
+            query = query.filter_by(lab_type=lab_type)
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(ResearchData.collection_date >= datetime.fromisoformat(start_date))
+            query = query.filter(ResearchLab.establishment_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(ResearchData.collection_date <= datetime.fromisoformat(end_date))
+            query = query.filter(ResearchLab.establishment_date <= datetime.fromisoformat(end_date))
         
-        data = query.all()
-        return format_response([item.to_dict() for item in data])
-    except Exception as e:
-        return handle_exception(e)
-
-@research_bp.route('/teams', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_teams():
-    """Get all research teams with optional filters"""
-    try:
-        team_type = request.args.get('team_type')
-        status = request.args.get('status')
-        
-        query = ResearchTeam.query
-        
-        if team_type:
-            query = query.filter_by(team_type=team_type)
-        if status:
-            query = query.filter_by(status=status)
-        
-        teams = query.all()
-        return format_response([team.to_dict() for team in teams])
-    except Exception as e:
-        return handle_exception(e)
-
-@research_bp.route('/milestones', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_milestones():
-    """Get all research milestones with optional filters"""
-    try:
-        milestone_type = request.args.get('milestone_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = ResearchMilestone.query
-        
-        if milestone_type:
-            query = query.filter_by(milestone_type=milestone_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(ResearchMilestone.target_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(ResearchMilestone.target_date <= datetime.fromisoformat(end_date))
-        
-        milestones = query.all()
-        return format_response([milestone.to_dict() for milestone in milestones])
-    except Exception as e:
-        return handle_exception(e)
-
-@research_bp.route('/expenses', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_expenses():
-    """Get all research expenses with optional filters"""
-    try:
-        expense_type = request.args.get('expense_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = ResearchExpense.query
-        
-        if expense_type:
-            query = query.filter_by(expense_type=expense_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(ResearchExpense.date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(ResearchExpense.date <= datetime.fromisoformat(end_date))
-        
-        expenses = query.all()
-        return format_response([expense.to_dict() for expense in expenses])
-    except Exception as e:
-        return handle_exception(e)
-
-@research_bp.route('/ethics', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_ethics():
-    """Get all research ethics records with optional filters"""
-    try:
-        ethics_type = request.args.get('ethics_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = ResearchEthics.query
-        
-        if ethics_type:
-            query = query.filter_by(ethics_type=ethics_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(ResearchEthics.approval_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(ResearchEthics.approval_date <= datetime.fromisoformat(end_date))
-        
-        ethics_records = query.all()
-        return format_response([record.to_dict() for record in ethics_records])
-    except Exception as e:
-        return handle_exception(e)
-
-@research_bp.route('/patents', methods=['GET'])
-@jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_patents():
-    """Get all research patents with optional filters"""
-    try:
-        patent_type = request.args.get('patent_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = ResearchPatent.query
-        
-        if patent_type:
-            query = query.filter_by(patent_type=patent_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(ResearchPatent.filing_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(ResearchPatent.filing_date <= datetime.fromisoformat(end_date))
-        
-        patents = query.all()
-        return format_response([patent.to_dict() for patent in patents])
+        labs = query.all()
+        return format_response([lab.to_dict() for lab in labs])
     except Exception as e:
         return handle_exception(e)
 
 @research_bp.route('/conferences', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_conferences():
+@role_required(['admin', 'research_manager'])
+def get_conferences():
     """Get all research conferences with optional filters"""
     try:
         conference_type = request.args.get('conference_type')
@@ -331,56 +232,110 @@ def get_research_conferences():
     except Exception as e:
         return handle_exception(e)
 
-@research_bp.route('/training', methods=['GET'])
+@research_bp.route('/workshops', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_training():
-    """Get all research training records with optional filters"""
+@role_required(['admin', 'research_manager'])
+def get_workshops():
+    """Get all research workshops with optional filters"""
     try:
-        training_type = request.args.get('training_type')
+        workshop_type = request.args.get('workshop_type')
         status = request.args.get('status')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        query = ResearchTraining.query
+        query = ResearchWorkshop.query
         
-        if training_type:
-            query = query.filter_by(training_type=training_type)
+        if workshop_type:
+            query = query.filter_by(workshop_type=workshop_type)
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(ResearchTraining.start_date >= datetime.fromisoformat(start_date))
+            query = query.filter(ResearchWorkshop.start_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(ResearchTraining.end_date <= datetime.fromisoformat(end_date))
+            query = query.filter(ResearchWorkshop.end_date <= datetime.fromisoformat(end_date))
         
-        training_records = query.all()
-        return format_response([record.to_dict() for record in training_records])
+        workshops = query.all()
+        return format_response([workshop.to_dict() for workshop in workshops])
     except Exception as e:
         return handle_exception(e)
 
-@research_bp.route('/awards', methods=['GET'])
+@research_bp.route('/seminars', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'researcher'])
-def get_research_awards():
-    """Get all research awards with optional filters"""
+@role_required(['admin', 'research_manager'])
+def get_seminars():
+    """Get all research seminars with optional filters"""
     try:
-        award_type = request.args.get('award_type')
+        seminar_type = request.args.get('seminar_type')
         status = request.args.get('status')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        query = ResearchAward.query
+        query = ResearchSeminar.query
         
-        if award_type:
-            query = query.filter_by(award_type=award_type)
+        if seminar_type:
+            query = query.filter_by(seminar_type=seminar_type)
         if status:
             query = query.filter_by(status=status)
         if start_date:
-            query = query.filter(ResearchAward.award_date >= datetime.fromisoformat(start_date))
+            query = query.filter(ResearchSeminar.start_date >= datetime.fromisoformat(start_date))
         if end_date:
-            query = query.filter(ResearchAward.award_date <= datetime.fromisoformat(end_date))
+            query = query.filter(ResearchSeminar.end_date <= datetime.fromisoformat(end_date))
         
-        awards = query.all()
-        return format_response([award.to_dict() for award in awards])
+        seminars = query.all()
+        return format_response([seminar.to_dict() for seminar in seminars])
+    except Exception as e:
+        return handle_exception(e)
+
+@research_bp.route('/students', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'research_manager'])
+def get_students():
+    """Get all research students with optional filters"""
+    try:
+        student_type = request.args.get('student_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ResearchStudent.query
+        
+        if student_type:
+            query = query.filter_by(student_type=student_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ResearchStudent.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ResearchStudent.end_date <= datetime.fromisoformat(end_date))
+        
+        students = query.all()
+        return format_response([student.to_dict() for student in students])
+    except Exception as e:
+        return handle_exception(e)
+
+@research_bp.route('/supervisors', methods=['GET'])
+@jwt_required()
+@role_required(['admin', 'research_manager'])
+def get_supervisors():
+    """Get all research supervisors with optional filters"""
+    try:
+        supervisor_type = request.args.get('supervisor_type')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = ResearchSupervisor.query
+        
+        if supervisor_type:
+            query = query.filter_by(supervisor_type=supervisor_type)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            query = query.filter(ResearchSupervisor.start_date >= datetime.fromisoformat(start_date))
+        if end_date:
+            query = query.filter(ResearchSupervisor.end_date <= datetime.fromisoformat(end_date))
+        
+        supervisors = query.all()
+        return format_response([supervisor.to_dict() for supervisor in supervisors])
     except Exception as e:
         return handle_exception(e) 
