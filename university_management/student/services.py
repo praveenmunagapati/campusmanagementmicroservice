@@ -24,8 +24,51 @@ class StudentService(BaseService):
     def __init__(self):
         super().__init__(Student)
     
-    # Add service-specific methods here
-    pass
+    def get_by_student_id(self, student_id: str) -> Student:
+        """Get student by student ID."""
+        student = self.model_class.query.filter_by(student_id=student_id).first()
+        if not student:
+            raise NotFoundError(f"Student with ID {student_id} not found")
+        return student
+    
+    def get_by_email(self, email: str) -> Student:
+        """Get student by email."""
+        student = self.model_class.query.filter_by(email=email).first()
+        if not student:
+            raise NotFoundError(f"Student with email {email} not found")
+        return student
+    
+    def get_by_program(self, program_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get students by program ID."""
+        query = self.model_class.query.filter_by(program_id=program_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_department(self, department_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get students by department ID."""
+        query = self.model_class.query.filter_by(department_id=department_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_advisor(self, advisor_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get students by advisor ID."""
+        query = self.model_class.query.filter_by(advisor_id=advisor_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get students by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
+    
+    def search(self, query: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Search students by name, email, or student ID."""
+        search_query = f"%{query}%"
+        query = self.model_class.query.filter(
+            (self.model_class.first_name.ilike(search_query)) |
+            (self.model_class.last_name.ilike(search_query)) |
+            (self.model_class.email.ilike(search_query)) |
+            (self.model_class.student_id.ilike(search_query))
+        )
+        return paginate_query(query, page, per_page)
+
 
 class StudentProfileService(BaseService):
     """Service for StudentProfile operations."""
@@ -33,237 +76,19 @@ class StudentProfileService(BaseService):
     def __init__(self):
         super().__init__(StudentProfile)
     
-    # Add service-specific methods here
-    pass
-
-class StudentAcademicService(BaseService):
-    """Service for StudentAcademic operations."""
-    
-    def __init__(self):
-        super().__init__(StudentAcademic)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentFinancialService(BaseService):
-    """Service for StudentFinancial operations."""
-    
-    def __init__(self):
-        super().__init__(StudentFinancial)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentDocumentService(BaseService):
-    """Service for StudentDocument operations."""
-    
-    def __init__(self):
-        super().__init__(StudentDocument)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentEnrollmentService(BaseService):
-    """Service for StudentEnrollment operations."""
-    
-    def __init__(self):
-        super().__init__(StudentEnrollment)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentAttendanceService(BaseService):
-    """Service for StudentAttendance operations."""
-    
-    def __init__(self):
-        super().__init__(StudentAttendance)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentGradeService(BaseService):
-    """Service for StudentGrade operations."""
-    
-    def __init__(self):
-        super().__init__(StudentGrade)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentAdvisingService(BaseService):
-    """Service for StudentAdvising operations."""
-    
-    def __init__(self):
-        super().__init__(StudentAdvising)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentServiceService(BaseService):
-    """Service for StudentService operations."""
-    
-    def __init__(self):
-        super().__init__(StudentService)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentComplaintService(BaseService):
-    """Service for StudentComplaint operations."""
-    
-    def __init__(self):
-        super().__init__(StudentComplaint)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentFeedbackService(BaseService):
-    """Service for StudentFeedback operations."""
-    
-    def __init__(self):
-        super().__init__(StudentFeedback)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentSurveyService(BaseService):
-    """Service for StudentSurvey operations."""
-    
-    def __init__(self):
-        super().__init__(StudentSurvey)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentLocationService(BaseService):
-    """Service for StudentLocation operations."""
-    
-    def __init__(self):
-        super().__init__(StudentLocation)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentContactService(BaseService):
-    """Service for StudentContact operations."""
-    
-    def __init__(self):
-        super().__init__(StudentContact)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentEmergencyService(BaseService):
-    """Service for StudentEmergency operations."""
-    
-    def __init__(self):
-        super().__init__(StudentEmergency)
-    
-    # Add service-specific methods here
-    pass
-
-class StudentService:
-    """Service for student operations."""
-    
-    def __init__(self):
-        self.model_class = Student
-        self.schema = StudentSchema()
-    
-    def get_by_id(self, id: int) -> Student:
-        """Get student by ID."""
-        student = self.model_class.get_by_id(id)
-        if not student:
-            raise NotFoundError(f"Student with ID {id} not found")
-        return student
-    
-    def get_all(self, page: int = 1, per_page: int = 10) -> Dict:
-        """Get all students with pagination."""
-        query = self.model_class.query
-        return paginate_query(query, page, per_page)
-    
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> Student:
-        """Create a new student."""
-        try:
-            # Validate data
-            validated_data = self.schema.load(data)
-            
-            # Check if student_id already exists
-            if self.model_class.query.filter_by(student_id=validated_data['student_id']).first():
-                raise ConflictError(f"Student with ID {validated_data['student_id']} already exists")
-            
-            # Create student
-            student = self.model_class(**validated_data)
-            student.save()
-            
-            return student
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> Student:
-        """Update a student."""
-        student = self.get_by_id(id)
-        
-        try:
-            # Validate data
-            validated_data = self.schema.load(data, partial=True)
-            
-            # Update student
-            for key, value in validated_data.items():
-                setattr(student, key, value)
-            
-            student.save()
-            return student
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def delete(self, id: int, user_id: Optional[int] = None) -> None:
-        """Delete a student."""
-        student = self.get_by_id(id)
-        student.delete()
-
-class StudentProfileService:
-    """Service for student profile operations."""
-    
-    def __init__(self):
-        self.model_class = StudentProfile
-        self.schema = StudentProfileSchema()
-    
     def get_by_student_id(self, student_id: int) -> StudentProfile:
         """Get student profile by student ID."""
         profile = self.model_class.query.filter_by(student_id=student_id).first()
         if not profile:
             raise NotFoundError(f"Profile for student {student_id} not found")
         return profile
-    
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentProfile:
-        """Create a new student profile."""
-        try:
-            validated_data = self.schema.load(data)
-            profile = self.model_class(**validated_data)
-            profile.save()
-            return profile
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def update(self, student_id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentProfile:
-        """Update a student profile."""
-        profile = self.get_by_student_id(student_id)
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(profile, key, value)
-            profile.save()
-            return profile
-        except Exception as e:
-            raise ValidationError(str(e))
 
-class StudentAcademicService:
-    """Service for student academic operations."""
+
+class StudentAcademicService(BaseService):
+    """Service for StudentAcademic operations."""
     
     def __init__(self):
-        self.model_class = StudentAcademic
-        self.schema = StudentAcademicSchema()
+        super().__init__(StudentAcademic)
     
     def get_by_student_id(self, student_id: int) -> StudentAcademic:
         """Get student academic record by student ID."""
@@ -272,35 +97,27 @@ class StudentAcademicService:
             raise NotFoundError(f"Academic record for student {student_id} not found")
         return academic
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAcademic:
-        """Create a new student academic record."""
-        try:
-            validated_data = self.schema.load(data)
-            academic = self.model_class(**validated_data)
-            academic.save()
-            return academic
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_program(self, program_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get academic records by program ID."""
+        query = self.model_class.query.filter_by(program_id=program_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, student_id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAcademic:
-        """Update a student academic record."""
-        academic = self.get_by_student_id(student_id)
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(academic, key, value)
-            academic.save()
-            return academic
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_semester(self, semester: str, year: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get academic records by semester and year."""
+        query = self.model_class.query.filter_by(semester=semester, year=year)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get academic records by status."""
+        query = self.model_class.query.filter_by(academic_status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentFinancialService:
-    """Service for student financial operations."""
+
+class StudentFinancialService(BaseService):
+    """Service for StudentFinancial operations."""
     
     def __init__(self):
-        self.model_class = StudentFinancial
-        self.schema = StudentFinancialSchema()
+        super().__init__(StudentFinancial)
     
     def get_by_student_id(self, student_id: int) -> StudentFinancial:
         """Get student financial record by student ID."""
@@ -309,497 +126,330 @@ class StudentFinancialService:
             raise NotFoundError(f"Financial record for student {student_id} not found")
         return financial
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentFinancial:
-        """Create a new student financial record."""
-        try:
-            validated_data = self.schema.load(data)
-            financial = self.model_class(**validated_data)
-            financial.save()
-            return financial
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get financial records by payment status."""
+        query = self.model_class.query.filter_by(payment_status=status)
+        return paginate_query(query, page, per_page)
     
-    def update(self, student_id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentFinancial:
-        """Update a student financial record."""
-        financial = self.get_by_student_id(student_id)
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(financial, key, value)
-            financial.save()
-            return financial
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_overdue_payments(self, page: int = 1, per_page: int = 10) -> Dict:
+        """Get overdue payments."""
+        today = datetime.utcnow().date()
+        query = self.model_class.query.filter(
+            self.model_class.payment_status == 'unpaid',
+            self.model_class.payment_due_date < today
+        )
+        return paginate_query(query, page, per_page)
 
-class StudentDocumentService:
-    """Service for student document operations."""
+
+class StudentDocumentService(BaseService):
+    """Service for StudentDocument operations."""
     
     def __init__(self):
-        self.model_class = StudentDocument
-        self.schema = StudentDocumentSchema()
+        super().__init__(StudentDocument)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student documents by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentDocument:
-        """Create a new student document."""
-        try:
-            validated_data = self.schema.load(data)
-            document = self.model_class(**validated_data)
-            document.save()
-            return document
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, document_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get documents by type."""
+        query = self.model_class.query.filter_by(document_type=document_type)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentDocument:
-        """Update a student document."""
-        document = self.model_class.get_by_id(id)
-        if not document:
-            raise NotFoundError(f"Document with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(document, key, value)
-            document.save()
-            return document
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def delete(self, id: int, user_id: Optional[int] = None) -> None:
-        """Delete a student document."""
-        document = self.model_class.get_by_id(id)
-        if not document:
-            raise NotFoundError(f"Document with ID {id} not found")
-        document.delete()
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get documents by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentEnrollmentService:
-    """Service for student enrollment operations."""
+
+class StudentEnrollmentService(BaseService):
+    """Service for StudentEnrollment operations."""
     
     def __init__(self):
-        self.model_class = StudentEnrollment
-        self.schema = StudentEnrollmentSchema()
+        super().__init__(StudentEnrollment)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student enrollments by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentEnrollment:
-        """Create a new student enrollment."""
-        try:
-            validated_data = self.schema.load(data)
-            enrollment = self.model_class(**validated_data)
-            enrollment.save()
-            return enrollment
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_course(self, course_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get enrollments by course ID."""
+        query = self.model_class.query.filter_by(course_id=course_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentEnrollment:
-        """Update a student enrollment."""
-        enrollment = self.model_class.get_by_id(id)
-        if not enrollment:
-            raise NotFoundError(f"Enrollment with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(enrollment, key, value)
-            enrollment.save()
-            return enrollment
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_section(self, section_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get enrollments by section ID."""
+        query = self.model_class.query.filter_by(section_id=section_id)
+        return paginate_query(query, page, per_page)
     
-    def delete(self, id: int, user_id: Optional[int] = None) -> None:
-        """Delete a student enrollment."""
-        enrollment = self.model_class.get_by_id(id)
-        if not enrollment:
-            raise NotFoundError(f"Enrollment with ID {id} not found")
-        enrollment.delete()
+    def get_by_semester(self, semester: str, year: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get enrollments by semester and year."""
+        query = self.model_class.query.filter_by(semester=semester, year=year)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get enrollments by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentAttendanceService:
-    """Service for student attendance operations."""
+
+class StudentAttendanceService(BaseService):
+    """Service for StudentAttendance operations."""
     
     def __init__(self):
-        self.model_class = StudentAttendance
-        self.schema = StudentAttendanceSchema()
+        super().__init__(StudentAttendance)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student attendance records by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAttendance:
-        """Create a new student attendance record."""
-        try:
-            validated_data = self.schema.load(data)
-            attendance = self.model_class(**validated_data)
-            attendance.save()
-            return attendance
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_course(self, course_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get attendance records by course ID."""
+        query = self.model_class.query.filter_by(course_id=course_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAttendance:
-        """Update a student attendance record."""
-        attendance = self.model_class.get_by_id(id)
-        if not attendance:
-            raise NotFoundError(f"Attendance record with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(attendance, key, value)
-            attendance.save()
-            return attendance
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_section(self, section_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get attendance records by section ID."""
+        query = self.model_class.query.filter_by(section_id=section_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_date(self, date: datetime, page: int = 1, per_page: int = 10) -> Dict:
+        """Get attendance records by date."""
+        query = self.model_class.query.filter_by(date=date)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get attendance records by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentGradeService:
-    """Service for student grade operations."""
+
+class StudentGradeService(BaseService):
+    """Service for StudentGrade operations."""
     
     def __init__(self):
-        self.model_class = StudentGrade
-        self.schema = StudentGradeSchema()
+        super().__init__(StudentGrade)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student grades by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentGrade:
-        """Create a new student grade."""
-        try:
-            validated_data = self.schema.load(data)
-            grade = self.model_class(**validated_data)
-            grade.save()
-            return grade
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_course(self, course_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get grades by course ID."""
+        query = self.model_class.query.filter_by(course_id=course_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentGrade:
-        """Update a student grade."""
-        grade = self.model_class.get_by_id(id)
-        if not grade:
-            raise NotFoundError(f"Grade with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(grade, key, value)
-            grade.save()
-            return grade
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_section(self, section_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get grades by section ID."""
+        query = self.model_class.query.filter_by(section_id=section_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_semester(self, semester: str, year: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get grades by semester and year."""
+        query = self.model_class.query.filter_by(semester=semester, year=year)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_grade(self, grade: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get grades by grade value."""
+        query = self.model_class.query.filter_by(grade=grade)
+        return paginate_query(query, page, per_page)
 
-class StudentAdvisingService:
-    """Service for student advising operations."""
+
+class StudentAdvisingService(BaseService):
+    """Service for StudentAdvising operations."""
     
     def __init__(self):
-        self.model_class = StudentAdvising
-        self.schema = StudentAdvisingSchema()
+        super().__init__(StudentAdvising)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student advising records by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAdvising:
-        """Create a new student advising record."""
-        try:
-            validated_data = self.schema.load(data)
-            advising = self.model_class(**validated_data)
-            advising.save()
-            return advising
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_advisor(self, advisor_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get advising records by advisor ID."""
+        query = self.model_class.query.filter_by(advisor_id=advisor_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentAdvising:
-        """Update a student advising record."""
-        advising = self.model_class.get_by_id(id)
-        if not advising:
-            raise NotFoundError(f"Advising record with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(advising, key, value)
-            advising.save()
-            return advising
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, meeting_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get advising records by meeting type."""
+        query = self.model_class.query.filter_by(meeting_type=meeting_type)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get advising records by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentServiceService:
-    """Service for student service operations."""
+
+class StudentServiceService(BaseService):
+    """Service for StudentService operations."""
     
     def __init__(self):
-        self.model_class = StudentService
-        self.schema = StudentServiceSchema()
+        super().__init__(StudentService)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student services by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentService:
-        """Create a new student service record."""
-        try:
-            validated_data = self.schema.load(data)
-            service = self.model_class(**validated_data)
-            service.save()
-            return service
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, service_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get services by type."""
+        query = self.model_class.query.filter_by(service_type=service_type)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentService:
-        """Update a student service record."""
-        service = self.model_class.get_by_id(id)
-        if not service:
-            raise NotFoundError(f"Service record with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(service, key, value)
-            service.save()
-            return service
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get services by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentComplaintService:
-    """Service for student complaint operations."""
+
+class StudentComplaintService(BaseService):
+    """Service for StudentComplaint operations."""
     
     def __init__(self):
-        self.model_class = StudentComplaint
-        self.schema = StudentComplaintSchema()
+        super().__init__(StudentComplaint)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student complaints by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentComplaint:
-        """Create a new student complaint."""
-        try:
-            validated_data = self.schema.load(data)
-            complaint = self.model_class(**validated_data)
-            complaint.save()
-            return complaint
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, complaint_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get complaints by type."""
+        query = self.model_class.query.filter_by(complaint_type=complaint_type)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentComplaint:
-        """Update a student complaint."""
-        complaint = self.model_class.get_by_id(id)
-        if not complaint:
-            raise NotFoundError(f"Complaint with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(complaint, key, value)
-            complaint.save()
-            return complaint
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get complaints by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_priority(self, priority: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get complaints by priority."""
+        query = self.model_class.query.filter_by(priority=priority)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_assigned_to(self, assigned_to: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get complaints assigned to a specific faculty member."""
+        query = self.model_class.query.filter_by(assigned_to=assigned_to)
+        return paginate_query(query, page, per_page)
 
-class StudentFeedbackService:
-    """Service for student feedback operations."""
+
+class StudentFeedbackService(BaseService):
+    """Service for StudentFeedback operations."""
     
     def __init__(self):
-        self.model_class = StudentFeedback
-        self.schema = StudentFeedbackSchema()
+        super().__init__(StudentFeedback)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student feedback by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentFeedback:
-        """Create a new student feedback."""
-        try:
-            validated_data = self.schema.load(data)
-            feedback = self.model_class(**validated_data)
-            feedback.save()
-            return feedback
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, feedback_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get feedback by type."""
+        query = self.model_class.query.filter_by(feedback_type=feedback_type)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentFeedback:
-        """Update a student feedback."""
-        feedback = self.model_class.get_by_id(id)
-        if not feedback:
-            raise NotFoundError(f"Feedback with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(feedback, key, value)
-            feedback.save()
-            return feedback
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_target(self, target_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get feedback by target ID."""
+        query = self.model_class.query.filter_by(target_id=target_id)
+        return paginate_query(query, page, per_page)
+    
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get feedback by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentSurveyService:
-    """Service for student survey operations."""
+
+class StudentSurveyService(BaseService):
+    """Service for StudentSurvey operations."""
     
     def __init__(self):
-        self.model_class = StudentSurvey
-        self.schema = StudentSurveySchema()
+        super().__init__(StudentSurvey)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student surveys by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentSurvey:
-        """Create a new student survey response."""
-        try:
-            validated_data = self.schema.load(data)
-            survey = self.model_class(**validated_data)
-            survey.save()
-            return survey
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_survey(self, survey_id: int, page: int = 1, per_page: int = 10) -> Dict:
+        """Get survey responses by survey ID."""
+        query = self.model_class.query.filter_by(survey_id=survey_id)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentSurvey:
-        """Update a student survey response."""
-        survey = self.model_class.get_by_id(id)
-        if not survey:
-            raise NotFoundError(f"Survey response with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(survey, key, value)
-            survey.save()
-            return survey
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get survey responses by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentLocationService:
-    """Service for student location operations."""
+
+class StudentLocationService(BaseService):
+    """Service for StudentLocation operations."""
     
     def __init__(self):
-        self.model_class = StudentLocation
-        self.schema = StudentLocationSchema()
+        super().__init__(StudentLocation)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student locations by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentLocation:
-        """Create a new student location record."""
-        try:
-            validated_data = self.schema.load(data)
-            location = self.model_class(**validated_data)
-            location.save()
-            return location
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_building(self, building: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get locations by building."""
+        query = self.model_class.query.filter_by(building=building)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentLocation:
-        """Update a student location record."""
-        location = self.model_class.get_by_id(id)
-        if not location:
-            raise NotFoundError(f"Location record with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(location, key, value)
-            location.save()
-            return location
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_status(self, status: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get locations by status."""
+        query = self.model_class.query.filter_by(status=status)
+        return paginate_query(query, page, per_page)
 
-class StudentContactService:
-    """Service for student contact operations."""
+
+class StudentContactService(BaseService):
+    """Service for StudentContact operations."""
     
     def __init__(self):
-        self.model_class = StudentContact
-        self.schema = StudentContactSchema()
+        super().__init__(StudentContact)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student contacts by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentContact:
-        """Create a new student contact."""
-        try:
-            validated_data = self.schema.load(data)
-            contact = self.model_class(**validated_data)
-            contact.save()
-            return contact
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_by_type(self, contact_type: str, page: int = 1, per_page: int = 10) -> Dict:
+        """Get contacts by type."""
+        query = self.model_class.query.filter_by(contact_type=contact_type)
+        return paginate_query(query, page, per_page)
     
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentContact:
-        """Update a student contact."""
-        contact = self.model_class.get_by_id(id)
-        if not contact:
-            raise NotFoundError(f"Contact with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(contact, key, value)
-            contact.save()
-            return contact
-        except Exception as e:
-            raise ValidationError(str(e))
+    def get_primary_contacts(self, page: int = 1, per_page: int = 10) -> Dict:
+        """Get primary contacts."""
+        query = self.model_class.query.filter_by(is_primary=True)
+        return paginate_query(query, page, per_page)
     
-    def delete(self, id: int, user_id: Optional[int] = None) -> None:
-        """Delete a student contact."""
-        contact = self.model_class.get_by_id(id)
-        if not contact:
-            raise NotFoundError(f"Contact with ID {id} not found")
-        contact.delete()
+    def get_verified_contacts(self, page: int = 1, per_page: int = 10) -> Dict:
+        """Get verified contacts."""
+        query = self.model_class.query.filter_by(is_verified=True)
+        return paginate_query(query, page, per_page)
 
-class StudentEmergencyService:
-    """Service for student emergency contact operations."""
+
+class StudentEmergencyService(BaseService):
+    """Service for StudentEmergency operations."""
     
     def __init__(self):
-        self.model_class = StudentEmergency
-        self.schema = StudentEmergencySchema()
+        super().__init__(StudentEmergency)
     
     def get_by_student_id(self, student_id: int, page: int = 1, per_page: int = 10) -> Dict:
         """Get student emergency contacts by student ID."""
         query = self.model_class.query.filter_by(student_id=student_id)
         return paginate_query(query, page, per_page)
     
-    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentEmergency:
-        """Create a new student emergency contact."""
-        try:
-            validated_data = self.schema.load(data)
-            emergency = self.model_class(**validated_data)
-            emergency.save()
-            return emergency
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def update(self, id: int, data: Dict[str, Any], user_id: Optional[int] = None) -> StudentEmergency:
-        """Update a student emergency contact."""
-        emergency = self.model_class.get_by_id(id)
-        if not emergency:
-            raise NotFoundError(f"Emergency contact with ID {id} not found")
-        
-        try:
-            validated_data = self.schema.load(data, partial=True)
-            for key, value in validated_data.items():
-                setattr(emergency, key, value)
-            emergency.save()
-            return emergency
-        except Exception as e:
-            raise ValidationError(str(e))
-    
-    def delete(self, id: int, user_id: Optional[int] = None) -> None:
-        """Delete a student emergency contact."""
-        emergency = self.model_class.get_by_id(id)
-        if not emergency:
-            raise NotFoundError(f"Emergency contact with ID {id} not found")
-        emergency.delete()
+    def get_primary_contacts(self, page: int = 1, per_page: int = 10) -> Dict:
+        """Get primary emergency contacts."""
+        query = self.model_class.query.filter_by(is_primary=True)
+        return paginate_query(query, page, per_page)
