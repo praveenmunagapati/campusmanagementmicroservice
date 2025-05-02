@@ -1,407 +1,1224 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .models import (
-    Student, StudentProfile, StudentAcademic,
-    StudentFinancial, StudentDocument,
-    StudentEnrollment, StudentAttendance,
-    StudentGrade, StudentAdvising,
-    StudentService, StudentComplaint,
-    StudentFeedback, StudentSurvey,
-    StudentLocation, StudentContact,
-    StudentEmergency
-)
-from . import db
-from datetime import datetime
-from utils import role_required, validate_request, format_response, log_activity, handle_exception
+from . import db, cache, limiter
+from .utils import format_response
+from .services import *
 
-student_bp = Blueprint('student', __name__)
+api_bp = Blueprint('api', __name__)
 
-@student_bp.route('/students', methods=['GET'])
+
+@api_bp.route('/student', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
-def get_students():
-    """Get all students with optional filters"""
-    try:
-        student_type = request.args.get('student_type')
-        program = request.args.get('program')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = Student.query
-        
-        if student_type:
-            query = query.filter_by(student_type=student_type)
-        if program:
-            query = query.filter_by(program=program)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(Student.enrollment_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(Student.enrollment_date <= datetime.fromisoformat(end_date))
-        
-        students = query.all()
-        return format_response([student.to_dict() for student in students])
-    except Exception as e:
-        return handle_exception(e)
+@limiter.limit("100 per minute")
+def get_student():
+    """Get student."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = StudentService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Student retrieved successfully'
+    ))
 
-@student_bp.route('/profiles', methods=['GET'])
+@api_bp.route('/student/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
-def get_profiles():
-    """Get all student profiles with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        nationality = request.args.get('nationality')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentProfile.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if nationality:
-            query = query.filter_by(nationality=nationality)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentProfile.created_at >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentProfile.created_at <= datetime.fromisoformat(end_date))
-        
-        profiles = query.all()
-        return format_response([profile.to_dict() for profile in profiles])
-    except Exception as e:
-        return handle_exception(e)
+@limiter.limit("100 per minute")
+def get_student_by_id(id):
+    """Get student by ID."""
+    service = StudentService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Student retrieved successfully'
+    ))
 
-@student_bp.route('/academic', methods=['GET'])
+@api_bp.route('/student', methods=['POST'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("50 per minute")
+def create_student():
+    """Create student."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = StudentService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Student created successfully'
+    )), 201
+
+@api_bp.route('/student/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_student(id):
+    """Update student."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = StudentService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Student updated successfully'
+    ))
+
+@api_bp.route('/student/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_student(id):
+    """Delete student."""
+    user_id = get_jwt_identity()
+    
+    service = StudentService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Student deleted successfully'
+    ))
+
+@api_bp.route('/profile', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_profile():
+    """Get profile."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = ProfileService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Profile retrieved successfully'
+    ))
+
+@api_bp.route('/profile/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_profile_by_id(id):
+    """Get profile by ID."""
+    service = ProfileService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Profile retrieved successfully'
+    ))
+
+@api_bp.route('/profile', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_profile():
+    """Create profile."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ProfileService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Profile created successfully'
+    )), 201
+
+@api_bp.route('/profile/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_profile(id):
+    """Update profile."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ProfileService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Profile updated successfully'
+    ))
+
+@api_bp.route('/profile/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_profile(id):
+    """Delete profile."""
+    user_id = get_jwt_identity()
+    
+    service = ProfileService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Profile deleted successfully'
+    ))
+
+@api_bp.route('/academic', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_academic():
-    """Get all student academic records with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        program = request.args.get('program')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentAcademic.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if program:
-            query = query.filter_by(program=program)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentAcademic.start_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentAcademic.end_date <= datetime.fromisoformat(end_date))
-        
-        records = query.all()
-        return format_response([record.to_dict() for record in records])
-    except Exception as e:
-        return handle_exception(e)
+    """Get academic."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = AcademicService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Academic retrieved successfully'
+    ))
 
-@student_bp.route('/financial', methods=['GET'])
+@api_bp.route('/academic/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_academic_by_id(id):
+    """Get academic by ID."""
+    service = AcademicService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Academic retrieved successfully'
+    ))
+
+@api_bp.route('/academic', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_academic():
+    """Create academic."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AcademicService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Academic created successfully'
+    )), 201
+
+@api_bp.route('/academic/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_academic(id):
+    """Update academic."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AcademicService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Academic updated successfully'
+    ))
+
+@api_bp.route('/academic/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_academic(id):
+    """Delete academic."""
+    user_id = get_jwt_identity()
+    
+    service = AcademicService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Academic deleted successfully'
+    ))
+
+@api_bp.route('/financial', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_financial():
-    """Get all student financial records with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        payment_type = request.args.get('payment_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentFinancial.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if payment_type:
-            query = query.filter_by(payment_type=payment_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentFinancial.payment_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentFinancial.payment_date <= datetime.fromisoformat(end_date))
-        
-        records = query.all()
-        return format_response([record.to_dict() for record in records])
-    except Exception as e:
-        return handle_exception(e)
+    """Get financial."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = FinancialService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Financial retrieved successfully'
+    ))
 
-@student_bp.route('/documents', methods=['GET'])
+@api_bp.route('/financial/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_financial_by_id(id):
+    """Get financial by ID."""
+    service = FinancialService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Financial retrieved successfully'
+    ))
+
+@api_bp.route('/financial', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_financial():
+    """Create financial."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = FinancialService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Financial created successfully'
+    )), 201
+
+@api_bp.route('/financial/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_financial(id):
+    """Update financial."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = FinancialService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Financial updated successfully'
+    ))
+
+@api_bp.route('/financial/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_financial(id):
+    """Delete financial."""
+    user_id = get_jwt_identity()
+    
+    service = FinancialService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Financial deleted successfully'
+    ))
+
+@api_bp.route('/documents', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_documents():
-    """Get all student documents with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        document_type = request.args.get('document_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentDocument.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if document_type:
-            query = query.filter_by(document_type=document_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentDocument.upload_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentDocument.upload_date <= datetime.fromisoformat(end_date))
-        
-        documents = query.all()
-        return format_response([document.to_dict() for document in documents])
-    except Exception as e:
-        return handle_exception(e)
+    """Get documents."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = DocumentsService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Documents retrieved successfully'
+    ))
 
-@student_bp.route('/enrollments', methods=['GET'])
+@api_bp.route('/documents/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
-def get_enrollments():
-    """Get all student enrollments with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        course = request.args.get('course')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentEnrollment.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if course:
-            query = query.filter_by(course=course)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentEnrollment.enrollment_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentEnrollment.enrollment_date <= datetime.fromisoformat(end_date))
-        
-        enrollments = query.all()
-        return format_response([enrollment.to_dict() for enrollment in enrollments])
-    except Exception as e:
-        return handle_exception(e)
+@limiter.limit("100 per minute")
+def get_documents_by_id(id):
+    """Get documents by ID."""
+    service = DocumentsService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Documents retrieved successfully'
+    ))
 
-@student_bp.route('/attendance', methods=['GET'])
+@api_bp.route('/documents', methods=['POST'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("50 per minute")
+def create_documents():
+    """Create documents."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = DocumentsService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Documents created successfully'
+    )), 201
+
+@api_bp.route('/documents/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_documents(id):
+    """Update documents."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = DocumentsService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Documents updated successfully'
+    ))
+
+@api_bp.route('/documents/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_documents(id):
+    """Delete documents."""
+    user_id = get_jwt_identity()
+    
+    service = DocumentsService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Documents deleted successfully'
+    ))
+
+@api_bp.route('/enrollment', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_enrollment():
+    """Get enrollment."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = EnrollmentService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Enrollment retrieved successfully'
+    ))
+
+@api_bp.route('/enrollment/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_enrollment_by_id(id):
+    """Get enrollment by ID."""
+    service = EnrollmentService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Enrollment retrieved successfully'
+    ))
+
+@api_bp.route('/enrollment', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_enrollment():
+    """Create enrollment."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = EnrollmentService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Enrollment created successfully'
+    )), 201
+
+@api_bp.route('/enrollment/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_enrollment(id):
+    """Update enrollment."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = EnrollmentService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Enrollment updated successfully'
+    ))
+
+@api_bp.route('/enrollment/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_enrollment(id):
+    """Delete enrollment."""
+    user_id = get_jwt_identity()
+    
+    service = EnrollmentService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Enrollment deleted successfully'
+    ))
+
+@api_bp.route('/attendance', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_attendance():
-    """Get all student attendance records with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        course = request.args.get('course')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentAttendance.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if course:
-            query = query.filter_by(course=course)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentAttendance.attendance_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentAttendance.attendance_date <= datetime.fromisoformat(end_date))
-        
-        records = query.all()
-        return format_response([record.to_dict() for record in records])
-    except Exception as e:
-        return handle_exception(e)
+    """Get attendance."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = AttendanceService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Attendance retrieved successfully'
+    ))
 
-@student_bp.route('/grades', methods=['GET'])
+@api_bp.route('/attendance/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_attendance_by_id(id):
+    """Get attendance by ID."""
+    service = AttendanceService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Attendance retrieved successfully'
+    ))
+
+@api_bp.route('/attendance', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_attendance():
+    """Create attendance."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AttendanceService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Attendance created successfully'
+    )), 201
+
+@api_bp.route('/attendance/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_attendance(id):
+    """Update attendance."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AttendanceService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Attendance updated successfully'
+    ))
+
+@api_bp.route('/attendance/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_attendance(id):
+    """Delete attendance."""
+    user_id = get_jwt_identity()
+    
+    service = AttendanceService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Attendance deleted successfully'
+    ))
+
+@api_bp.route('/grades', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_grades():
-    """Get all student grades with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        course = request.args.get('course')
-        grade_type = request.args.get('grade_type')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentGrade.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if course:
-            query = query.filter_by(course=course)
-        if grade_type:
-            query = query.filter_by(grade_type=grade_type)
-        if start_date:
-            query = query.filter(StudentGrade.grade_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentGrade.grade_date <= datetime.fromisoformat(end_date))
-        
-        grades = query.all()
-        return format_response([grade.to_dict() for grade in grades])
-    except Exception as e:
-        return handle_exception(e)
+    """Get grades."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = GradesService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Grades retrieved successfully'
+    ))
 
-@student_bp.route('/advising', methods=['GET'])
+@api_bp.route('/grades/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_grades_by_id(id):
+    """Get grades by ID."""
+    service = GradesService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Grades retrieved successfully'
+    ))
+
+@api_bp.route('/grades', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_grades():
+    """Create grades."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = GradesService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Grades created successfully'
+    )), 201
+
+@api_bp.route('/grades/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_grades(id):
+    """Update grades."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = GradesService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Grades updated successfully'
+    ))
+
+@api_bp.route('/grades/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_grades(id):
+    """Delete grades."""
+    user_id = get_jwt_identity()
+    
+    service = GradesService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Grades deleted successfully'
+    ))
+
+@api_bp.route('/advising', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_advising():
-    """Get all student advising records with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        advisor_id = request.args.get('advisor_id')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentAdvising.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if advisor_id:
-            query = query.filter_by(advisor_id=advisor_id)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentAdvising.advising_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentAdvising.advising_date <= datetime.fromisoformat(end_date))
-        
-        records = query.all()
-        return format_response([record.to_dict() for record in records])
-    except Exception as e:
-        return handle_exception(e)
+    """Get advising."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = AdvisingService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Advising retrieved successfully'
+    ))
 
-@student_bp.route('/services', methods=['GET'])
+@api_bp.route('/advising/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_advising_by_id(id):
+    """Get advising by ID."""
+    service = AdvisingService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Advising retrieved successfully'
+    ))
+
+@api_bp.route('/advising', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_advising():
+    """Create advising."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AdvisingService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Advising created successfully'
+    )), 201
+
+@api_bp.route('/advising/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_advising(id):
+    """Update advising."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = AdvisingService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Advising updated successfully'
+    ))
+
+@api_bp.route('/advising/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_advising(id):
+    """Delete advising."""
+    user_id = get_jwt_identity()
+    
+    service = AdvisingService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Advising deleted successfully'
+    ))
+
+@api_bp.route('/services', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_services():
-    """Get all student services with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        service_type = request.args.get('service_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentService.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if service_type:
-            query = query.filter_by(service_type=service_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentService.service_date >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentService.service_date <= datetime.fromisoformat(end_date))
-        
-        services = query.all()
-        return format_response([service.to_dict() for service in services])
-    except Exception as e:
-        return handle_exception(e)
+    """Get services."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = ServicesService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Services retrieved successfully'
+    ))
 
-@student_bp.route('/complaints', methods=['GET'])
+@api_bp.route('/services/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_services_by_id(id):
+    """Get services by ID."""
+    service = ServicesService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Services retrieved successfully'
+    ))
+
+@api_bp.route('/services', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_services():
+    """Create services."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ServicesService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Services created successfully'
+    )), 201
+
+@api_bp.route('/services/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_services(id):
+    """Update services."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ServicesService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Services updated successfully'
+    ))
+
+@api_bp.route('/services/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_services(id):
+    """Delete services."""
+    user_id = get_jwt_identity()
+    
+    service = ServicesService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Services deleted successfully'
+    ))
+
+@api_bp.route('/complaints', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_complaints():
-    """Get all student complaints with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        complaint_type = request.args.get('complaint_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentComplaint.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if complaint_type:
-            query = query.filter_by(complaint_type=complaint_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentComplaint.created_at >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentComplaint.created_at <= datetime.fromisoformat(end_date))
-        
-        complaints = query.all()
-        return format_response([complaint.to_dict() for complaint in complaints])
-    except Exception as e:
-        return handle_exception(e)
+    """Get complaints."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = ComplaintsService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Complaints retrieved successfully'
+    ))
 
-@student_bp.route('/feedback', methods=['GET'])
+@api_bp.route('/complaints/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_complaints_by_id(id):
+    """Get complaints by ID."""
+    service = ComplaintsService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Complaints retrieved successfully'
+    ))
+
+@api_bp.route('/complaints', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_complaints():
+    """Create complaints."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ComplaintsService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Complaints created successfully'
+    )), 201
+
+@api_bp.route('/complaints/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_complaints(id):
+    """Update complaints."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ComplaintsService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Complaints updated successfully'
+    ))
+
+@api_bp.route('/complaints/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_complaints(id):
+    """Delete complaints."""
+    user_id = get_jwt_identity()
+    
+    service = ComplaintsService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Complaints deleted successfully'
+    ))
+
+@api_bp.route('/feedback', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_feedback():
-    """Get all student feedback with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        feedback_type = request.args.get('feedback_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentFeedback.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if feedback_type:
-            query = query.filter_by(feedback_type=feedback_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentFeedback.created_at >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentFeedback.created_at <= datetime.fromisoformat(end_date))
-        
-        feedback = query.all()
-        return format_response([item.to_dict() for item in feedback])
-    except Exception as e:
-        return handle_exception(e)
+    """Get feedback."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = FeedbackService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Feedback retrieved successfully'
+    ))
 
-@student_bp.route('/surveys', methods=['GET'])
+@api_bp.route('/feedback/<int:id>', methods=['GET'])
 @jwt_required()
-@role_required(['admin', 'student_manager'])
+@limiter.limit("100 per minute")
+def get_feedback_by_id(id):
+    """Get feedback by ID."""
+    service = FeedbackService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Feedback retrieved successfully'
+    ))
+
+@api_bp.route('/feedback', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_feedback():
+    """Create feedback."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = FeedbackService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Feedback created successfully'
+    )), 201
+
+@api_bp.route('/feedback/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_feedback(id):
+    """Update feedback."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = FeedbackService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Feedback updated successfully'
+    ))
+
+@api_bp.route('/feedback/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_feedback(id):
+    """Delete feedback."""
+    user_id = get_jwt_identity()
+    
+    service = FeedbackService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Feedback deleted successfully'
+    ))
+
+@api_bp.route('/surveys', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
 def get_surveys():
-    """Get all student surveys with optional filters"""
-    try:
-        student_id = request.args.get('student_id')
-        survey_type = request.args.get('survey_type')
-        status = request.args.get('status')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
-        query = StudentSurvey.query
-        
-        if student_id:
-            query = query.filter_by(student_id=student_id)
-        if survey_type:
-            query = query.filter_by(survey_type=survey_type)
-        if status:
-            query = query.filter_by(status=status)
-        if start_date:
-            query = query.filter(StudentSurvey.created_at >= datetime.fromisoformat(start_date))
-        if end_date:
-            query = query.filter(StudentSurvey.created_at <= datetime.fromisoformat(end_date))
-        
-        surveys = query.all()
-        return format_response([survey.to_dict() for survey in surveys])
-    except Exception as e:
-        return handle_exception(e) 
+    """Get surveys."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = SurveysService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Surveys retrieved successfully'
+    ))
+
+@api_bp.route('/surveys/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_surveys_by_id(id):
+    """Get surveys by ID."""
+    service = SurveysService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Surveys retrieved successfully'
+    ))
+
+@api_bp.route('/surveys', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_surveys():
+    """Create surveys."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = SurveysService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Surveys created successfully'
+    )), 201
+
+@api_bp.route('/surveys/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_surveys(id):
+    """Update surveys."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = SurveysService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Surveys updated successfully'
+    ))
+
+@api_bp.route('/surveys/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_surveys(id):
+    """Delete surveys."""
+    user_id = get_jwt_identity()
+    
+    service = SurveysService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Surveys deleted successfully'
+    ))
+
+@api_bp.route('/location', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_location():
+    """Get location."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = LocationService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Location retrieved successfully'
+    ))
+
+@api_bp.route('/location/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_location_by_id(id):
+    """Get location by ID."""
+    service = LocationService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Location retrieved successfully'
+    ))
+
+@api_bp.route('/location', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_location():
+    """Create location."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = LocationService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Location created successfully'
+    )), 201
+
+@api_bp.route('/location/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_location(id):
+    """Update location."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = LocationService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Location updated successfully'
+    ))
+
+@api_bp.route('/location/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_location(id):
+    """Delete location."""
+    user_id = get_jwt_identity()
+    
+    service = LocationService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Location deleted successfully'
+    ))
+
+@api_bp.route('/contacts', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_contacts():
+    """Get contacts."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = ContactsService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Contacts retrieved successfully'
+    ))
+
+@api_bp.route('/contacts/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_contacts_by_id(id):
+    """Get contacts by ID."""
+    service = ContactsService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Contacts retrieved successfully'
+    ))
+
+@api_bp.route('/contacts', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_contacts():
+    """Create contacts."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ContactsService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Contacts created successfully'
+    )), 201
+
+@api_bp.route('/contacts/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_contacts(id):
+    """Update contacts."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = ContactsService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Contacts updated successfully'
+    ))
+
+@api_bp.route('/contacts/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_contacts(id):
+    """Delete contacts."""
+    user_id = get_jwt_identity()
+    
+    service = ContactsService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Contacts deleted successfully'
+    ))
+
+@api_bp.route('/emergency', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_emergency():
+    """Get emergency."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    service = EmergencyService()
+    result = service.get_all(page, per_page)
+    
+    return jsonify(format_response(
+        data=result,
+        message='Emergency retrieved successfully'
+    ))
+
+@api_bp.route('/emergency/<int:id>', methods=['GET'])
+@jwt_required()
+@limiter.limit("100 per minute")
+def get_emergency_by_id(id):
+    """Get emergency by ID."""
+    service = EmergencyService()
+    result = service.get_by_id(id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Emergency retrieved successfully'
+    ))
+
+@api_bp.route('/emergency', methods=['POST'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def create_emergency():
+    """Create emergency."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = EmergencyService()
+    result = service.create(data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Emergency created successfully'
+    )), 201
+
+@api_bp.route('/emergency/<int:id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def update_emergency(id):
+    """Update emergency."""
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    
+    service = EmergencyService()
+    result = service.update(id, data, user_id)
+    
+    return jsonify(format_response(
+        data=result.to_dict(),
+        message='Emergency updated successfully'
+    ))
+
+@api_bp.route('/emergency/<int:id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("50 per minute")
+def delete_emergency(id):
+    """Delete emergency."""
+    user_id = get_jwt_identity()
+    
+    service = EmergencyService()
+    service.delete(id, user_id)
+    
+    return jsonify(format_response(
+        data=None,
+        message='Emergency deleted successfully'
+    ))
