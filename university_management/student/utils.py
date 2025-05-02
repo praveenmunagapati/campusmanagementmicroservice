@@ -4,7 +4,8 @@ import logging
 from datetime import datetime
 from functools import wraps
 from flask import jsonify, request
-from werkzeug.utils import secure_filename
+import werkzeug
+from .exceptions import ValidationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +19,8 @@ def allowed_file(filename, allowed_extensions):
 def secure_filename_with_timestamp(filename):
     """Generate a secure filename with timestamp"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    name, ext = os.path.splitext(secure_filename(filename))
+    secure_name = werkzeug.utils.secure_filename(filename)
+    name, ext = os.path.splitext(secure_name)
     return f"{name}_{timestamp}{ext}"
 
 def hash_password(password, salt, iterations=100000):
@@ -42,6 +44,12 @@ def format_response(data=None, message='Success', status_code=200):
 def handle_exception(e):
     """Handle exceptions and return formatted response"""
     logger.error(f"Error: {str(e)}")
+    if isinstance(e, ValidationError):
+        return format_response(
+            message=str(e),
+            status_code=e.status_code,
+            data={'errors': e.errors}
+        )
     return format_response(
         message=str(e),
         status_code=500
@@ -54,21 +62,13 @@ def validate_request(schema):
         def wrapper(*args, **kwargs):
             try:
                 data = request.get_json()
-                if not data:
-                    return format_response(
-                        message='No data provided',
-                        status_code=400
-                    )
-                errors = schema.validate(data)
-                if errors:
-                    return format_response(
-                        message='Invalid data',
-                        data=errors,
-                        status_code=400
-                    )
+                schema.validate(data)
                 return f(*args, **kwargs)
             except Exception as e:
-                return handle_exception(e)
+                return format_response(
+                    message=f"Invalid request data: {str(e)}",
+                    status_code=400
+                )
         return wrapper
     return decorator
 
@@ -87,9 +87,7 @@ def format_paginated_response(pagination):
         'total': pagination.total,
         'pages': pagination.pages,
         'current_page': pagination.page,
-        'per_page': pagination.per_page,
-        'has_next': pagination.has_next,
-        'has_prev': pagination.has_prev
+        'per_page': pagination.per_page
     }
 
 def log_activity(user_id, action, details=None):
@@ -100,13 +98,22 @@ def log_activity(user_id, action, details=None):
 
 def validate_date_range(start_date, end_date):
     """Validate date range"""
-    try:
-        start = datetime.fromisoformat(start_date) if start_date else None
-        end = datetime.fromisoformat(end_date) if end_date else None
-        
-        if start and end and start > end:
-            return False, 'Start date must be before end date'
-        
-        return True, None
-    except ValueError:
-        return False, 'Invalid date format' 
+    if start_date and end_date and start_date > end_date:
+        raise ValidationError("Start date must be before end date")
+    return True
+
+def validate_email(email):
+    """Validate email format."""
+    import re
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        raise ValidationError("Invalid email format")
+    return True
+
+def validate_phone(phone):
+    """Validate phone number format."""
+    import re
+    pattern = r'^\+?1?\d{9,15}$'
+    if not re.match(pattern, phone):
+        raise ValidationError("Invalid phone number format")
+    return True 
